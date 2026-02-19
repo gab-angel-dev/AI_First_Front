@@ -1,0 +1,242 @@
+---
+description: 
+alwaysApply: true
+---
+
+# AI First Painel — Cursor Rule
+
+## Contexto do Projeto
+
+Sistema de gerenciamento web para clínicas com IA. Interface admin que conecta com o banco de dados PostgreSQL compartilhado com o backend de agentes (repo separado). O frontend nunca acessa o BD diretamente — toda comunicação é via API Admin (FastAPI).
+
+---
+
+## Arquitetura
+
+```
+repo-agentes/        → backend IA (LangGraph, WhatsApp, agentes) — NÃO MEXER
+repo-clinica-web/    → este projeto (Frontend + API Admin FastAPI)
+    src/
+        api/         → endpoints FastAPI (/admin/*)
+        db/          → conexão e queries PostgreSQL
+        services/    → lógica de negócio (calendar, scheduler, evo)
+        frontend/    → interface web
+```
+
+---
+
+## Stack
+
+- **Backend:** Python 3.11+, FastAPI, psycopg2
+- **Banco:** PostgreSQL com extensão pgvector
+- **Frontend:** (definir stack — React, Next.js, etc.)
+- **Serviços externos:** Google Calendar API, Evolution API, OpenAI Embeddings
+
+---
+
+## Regras de Banco de Dados
+
+### Conexão — SEMPRE usar esta função:
+
+```python
+from src.db.connection import get_vector_conn
+
+conn = get_vector_conn()
+cursor = conn.cursor()
+try:
+    # operação
+    conn.commit()
+except Exception as e:
+    conn.rollback()
+    raise
+finally:
+    cursor.close()
+    conn.close()
+```
+
+**Nunca** criar conexões com psycopg2.connect() diretamente fora de `get_vector_conn()`.
+
+### Nomenclatura das colunas — padrão EN:
+
+**Tabela `users`:**
+- `phone_number`, `complete_name`, `require_human`, `complete_register`, `origin_contact`, `metadata`, `created_at`, `updated_at`
+
+**Tabela `chat`:**
+- `id`, `session_id`, `sender`, `agent_name`, `message`, `created_at`
+
+**Tabela `calendar_events`:**
+- `id`, `user_number`, `event_id`, `summary`, `dr_responsible`, `procedure`, `description`, `status`, `start_time`, `end_time`, `created_at`
+
+**Tabela `doctor_rules`:**
+- `id`, `name`, `doctor_number`, `calendar_id`, `active`, `procedures`, `available_weekdays`, `working_hours`, `insurances`, `restrictions`, `created_at`, `updated_at`
+
+**Tabela `rag_embeddings`:**
+- `id`, `content`, `category`, `embedding`, `created_at`
+
+**Tabela `files`:**
+- `id`, `category`, `fileName`, `mediaType`, `path`, `created_at`
+
+**Tabela `token_usage`:**
+- `id`, `phone_number`, `message_id`, `input_tokens`, `output_tokens`, `total_tokens`, `model_name`, `provider`, `created_at`
+
+---
+
+## Regras de API
+
+- Todos os endpoints admin seguem o padrão `/admin/{recurso}`
+- Sempre retornar JSON
+- Erros retornam o HTTP status correto:
+  - `404` recurso não encontrado
+  - `409` conflito (ex: arquivo já existe)
+  - `422` validação de payload
+  - `500` erro interno
+- Nunca expor stack trace no response de produção
+
+### Padrão de endpoint FastAPI:
+
+```python
+from fastapi import APIRouter, HTTPException
+from src.db.connection import get_vector_conn
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+@router.get("/recurso")
+def listar_recurso():
+    conn = get_vector_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM tabela")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+```
+
+---
+
+## Regras de Negócio Críticas
+
+### `doctor_rules.procedures`
+Array de objetos — **não** lista simples de strings:
+```json
+[{"nome": "Limpeza", "duracao_minutos": 30, "preco": 0, "descricao": "...", "triagem": null}]
+```
+Busca por procedimento usa:
+```sql
+EXISTS (SELECT 1 FROM jsonb_array_elements(procedures) AS p WHERE lower(p->>'nome') = lower(%s))
+```
+
+### `doctor_rules.insurances`
+Lista simples de strings em **lowercase**:
+```json
+["unimed", "bradesco", "particular"]
+```
+Busca usa: `insurances @> %s::jsonb`
+
+### `doctor_rules.available_weekdays`
+Lista de inteiros — `0=domingo, 1=segunda, ..., 6=sábado`:
+```json
+[1, 2, 3, 4, 5]
+```
+
+### `doctor_rules.working_hours`
+```json
+{"manha": {"inicio": "08:00", "fim": "12:00"}, "tarde": {"inicio": "14:00", "fim": "18:00"}}
+```
+
+### `users.require_human`
+- `false` = IA ativa, admin bloqueado de responder
+- `true` = humano no controle, IA bloqueada
+
+### `calendar_events`
+- `user_number` identifica o paciente (não `session_id`)
+- `dr_responsible` é o nome do doutor (string) — join com `doctor_rules.name`
+- `status`: `pending` | `confirmed` | `canceled`
+
+### Arquivos (tabela `files`)
+- `path` deve ser sempre a **URL pública** (ex: `https://dominio.com/files/categoria/arquivo.pdf`)
+- Nunca salvar caminho local (`/var/www/files/...`) no BD
+- Arquivos físicos ficam em `/var/www/files/{categoria}/{fileName}`
+
+### Embeddings
+- `category` em lowercase — busca exata
+- Modelo de embedding fixo: `text-embedding-3-small` (1536 dims) — nunca trocar sem recriar todos os vetores
+
+---
+
+## Regras de Segurança
+
+- Endpoints `/admin/*` devem ter autenticação (JWT ou API Key) — implementar antes de produção
+- Nunca expor dados de pacientes em logs
+- `category` de arquivos e embeddings: lowercase, sem espaços, sem caracteres especiais
+- Validar tamanho de arquivo no upload — limite 16MB (WhatsApp)
+
+---
+
+## Integrações Externas
+
+### Google Calendar
+```python
+from src.services.calendar import GoogleCalendarClient
+calendar = GoogleCalendarClient()
+# métodos: verificar(), adicionar(), deletar()
+```
+
+### Evolution API
+```python
+from src.services.evo import EvolutionAPI
+evo = EvolutionAPI()
+# métodos: sender_text(), sender_file(), notificar_admin_agendamento()
+```
+
+### Scheduler (lembretes)
+```python
+from src.services.scheduler import create_scheduler_message, delete_scheduler_message
+```
+
+### OpenAI Embeddings
+```python
+from openai import OpenAI
+client = OpenAI()
+response = client.embeddings.create(model="text-embedding-3-small", input=texto)
+embedding = response.data[0].embedding  # lista de 1536 floats
+```
+
+---
+
+## Variáveis de Ambiente Necessárias
+
+```env
+# Banco
+POSTGRES_HOST=
+POSTGRES_PORT=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_DB=
+
+# Google Calendar
+GOOGLE_CALENDAR_TOKEN_JSON=
+
+# Evolution API
+BASE_URL_EVO=
+API_KEY_EVO=
+INSTANCE_NAME=
+ADM_NUMBER=
+
+# OpenAI
+OPENAI_API_KEY=
+
+# Scheduler
+BASE_URL_SCHEDULER=
+API_TOKEN_SCHEDULER=
+WEBHOOK_URL_SCHEDULER=
+
+# Arquivos
+FILES_BASE_URL=https://seudominio.com/files
+
+# App
+SECRET_KEY=
+```

@@ -77,8 +77,8 @@ export interface RAGEmbedding {
 export interface File {
   id: number;
   category: string; // lowercase
-  fileName: string;
-  mediaType: string;
+  filename: string;
+  mediatype: string;
   path: string; // URL pública
   created_at: Date;
 }

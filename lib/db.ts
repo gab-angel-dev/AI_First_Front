@@ -31,7 +31,7 @@ export async function getDbConnection() {
 }
 
 // Função para executar queries
-export async function query(text: string, params?: any[]) {
+export async function query(text: string, params?: unknown[]) {
   const client = await getPool().connect();
   try {
     const result = await client.query(text, params);

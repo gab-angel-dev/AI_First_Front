@@ -4,49 +4,92 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* ── Backgrounds ──────────────────────────────── */
+    --background: 220 20% 97%;        /* #F5F7FA */
+    --foreground: 220 52% 7%;         /* #101828 */
+
+    /* ── Surface ──────────────────────────────────── */
+    --card: 0 0% 100%;                /* #FFFFFF */
+    --card-foreground: 220 52% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
+    --popover-foreground: 220 52% 7%;
+
+    /* ── Primary — Azul Petróleo ──────────────────── */
+    --primary: 210 62% 16%;           /* #0F2A44 */
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+
+    /* ── Secondary — Azul Petróleo Suave ─────────── */
+    --secondary: 213 50% 24%;         /* #1F3A5F */
+    --secondary-foreground: 210 40% 98%;
+
+    /* ── Muted ────────────────────────────────────── */
+    --muted: 220 14% 94%;
+    --muted-foreground: 218 18% 41%;  /* #475467 */
+
+    /* ── Accent (hover/focus) ─────────────────────── */
+    --accent: 213 40% 94%;
+    --accent-foreground: 210 62% 16%;
+
+    /* ── Borders ──────────────────────────────────── */
+    --border: 220 17% 89%;            /* #E4E7EC */
+    --input: 220 17% 89%;
+
+    /* ── Destructive / Error ──────────────────────── */
+    --destructive: 4 66% 40%;         /* #B42318 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Ring ─────────────────────────────────────── */
+    --ring: 210 62% 16%;
+
+    /* ── Radius ───────────────────────────────────── */
     --radius: 0.5rem;
+
+    /* ── Semantic extras ──────────────────────────── */
+    --success: 152 81% 25%;           /* #027A48 */
+    --highlight: 216 93% 45%;         /* #0B5ED7 */
+    --text-disabled: 218 13% 60%;     /* #98A2B3 */
+
+    /* ── Sidebar ──────────────────────────────────── */
+    --sidebar-bg: 210 62% 16%;        /* #0F2A44 */
+    --sidebar-hover: 213 50% 24%;     /* #1F3A5F */
+    --sidebar-active: 213 50% 24%;
+    --sidebar-text: 210 60% 90%;
+    --sidebar-text-muted: 213 30% 65%;
+    --sidebar-width: 220px;
+    --sidebar-collapsed-width: 56px;
+    --sidebar-transition: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* ── Dark mode ─────────────────────────────────── */
+  .dark {
+    --background: 220 26% 10%;
+    --foreground: 210 40% 96%;
+    --card: 220 22% 14%;
+    --card-foreground: 210 40% 96%;
+    --popover: 220 22% 14%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 213 60% 55%;
+    --primary-foreground: 220 26% 10%;
+    --secondary: 213 40% 22%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 215 18% 58%;
+    --accent: 213 40% 20%;
+    --accent-foreground: 210 40% 96%;
+    --border: 220 20% 22%;
+    --input: 220 20% 22%;
+    --destructive: 4 66% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --ring: 213 60% 55%;
+    --success: 152 60% 35%;
+    --highlight: 216 85% 60%;
+    --text-disabled: 218 13% 45%;
+    --sidebar-bg: 210 62% 16%;
+    --sidebar-hover: 213 50% 24%;
+    --sidebar-active: 213 50% 24%;
+    --sidebar-text: 210 60% 90%;
+    --sidebar-text-muted: 213 30% 65%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
 }
 
 @layer base {
@@ -56,4 +99,167 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── Skeleton animation ───────────────────────────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  background-color: hsl(var(--muted));
+  border-radius: var(--radius);
+}
+
+/* ── Sidebar transition ───────────────────────────────────────────────────── */
+.sidebar-transition {
+  transition:
+    width var(--sidebar-transition),
+    min-width var(--sidebar-transition);
+}
+
+/* ── react-big-calendar: theme override ───────────────────────────────────────
+   O rbc tem estilos hardcoded. Sobrescrevemos tudo via CSS variables do tema.
+   Funciona tanto no light quanto no dark mode.
+────────────────────────────────────────────────────────────────────────────── */
+
+/* Container geral */
+.rbc-calendar {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-radius: var(--radius);
+}
+
+/* Header dos dias da semana */
+.rbc-header {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border-bottom-color: hsl(var(--border)) !important;
+  padding: 8px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rbc-header + .rbc-header {
+  border-left-color: hsl(var(--border)) !important;
+}
+
+/* Todas as bordas internas */
+.rbc-month-view,
+.rbc-time-view,
+.rbc-agenda-view {
+  border-color: hsl(var(--border)) !important;
+}
+
+.rbc-month-row + .rbc-month-row {
+  border-top-color: hsl(var(--border)) !important;
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left-color: hsl(var(--border)) !important;
+}
+
+/* Células dos dias */
+.rbc-day-bg {
+  background-color: hsl(var(--card));
+}
+
+/* Dia de hoje — destaque sutil */
+.rbc-today {
+  background-color: hsl(var(--accent)) !important;
+}
+
+/* Dias fora do mês — mais apagados */
+.rbc-off-range-bg {
+  background-color: hsl(var(--muted)) !important;
+}
+
+.rbc-off-range .rbc-button-link {
+  color: hsl(var(--text-disabled, var(--muted-foreground))) !important;
+}
+
+/* Número do dia */
+.rbc-date-cell {
+  color: hsl(var(--foreground));
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.rbc-date-cell .rbc-button-link {
+  color: inherit;
+}
+
+/* Linha "show more" */
+.rbc-show-more {
+  color: hsl(var(--primary));
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+/* Toolbar (escondida no nosso caso, mas garantindo) */
+.rbc-toolbar {
+  color: hsl(var(--foreground));
+}
+
+.rbc-toolbar button {
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
+}
+
+.rbc-toolbar button:hover {
+  background-color: hsl(var(--accent));
+}
+
+.rbc-toolbar button.rbc-active {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+}
+
+/* View semanal — slots de horário */
+.rbc-time-content {
+  border-top-color: hsl(var(--border)) !important;
+}
+
+.rbc-time-header-content {
+  border-left-color: hsl(var(--border)) !important;
+}
+
+.rbc-timeslot-group {
+  border-bottom-color: hsl(var(--border)) !important;
+}
+
+.rbc-time-slot {
+  color: hsl(var(--muted-foreground));
+}
+
+.rbc-time-gutter .rbc-timeslot-group {
+  border-right-color: hsl(var(--border)) !important;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top-color: hsl(var(--border)) !important;
+}
+
+.rbc-current-time-indicator {
+  background-color: hsl(var(--destructive));
+}
+
+/* Popup "more events" */
+.rbc-overlay {
+  background-color: hsl(var(--popover));
+  border-color: hsl(var(--border));
+  color: hsl(var(--foreground));
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+
+.rbc-overlay-header {
+  border-bottom-color: hsl(var(--border));
+  color: hsl(var(--foreground));
 }

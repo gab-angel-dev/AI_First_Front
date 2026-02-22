@@ -249,25 +249,17 @@ function NewAppointmentModal({
 
   // Busca usuários ao digitar
   useEffect(() => {
-    if (userSearch.length < 2) { setUserOptions([]); return; }
-    const timeout = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/admin/users");
-        if (res.ok) {
-          const all: UserOption[] = await res.json();
-          const q = userSearch.toLowerCase();
-          setUserOptions(
-            all.filter(
-              (u) =>
-                u.phone_number.includes(q) ||
-                (u.complete_name ?? "").toLowerCase().includes(q)
-            ).slice(0, 8)
-          );
-        }
-      } catch {}
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [userSearch]);
+  if (userSearch.length < 2) { setUserOptions([]); return; }
+  const timeout = setTimeout(async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/users?q=${encodeURIComponent(userSearch)}`
+      );
+      if (res.ok) setUserOptions(await res.json());
+    } catch {}
+  }, 300);
+  return () => clearTimeout(timeout);
+}, [userSearch]);
 
   async function checkAvailability() {
     if (!selectedDoctor || !startDate || !startTime || !selectedProcedure) return;
@@ -606,7 +598,7 @@ export default function AgendaPage() {
     : `${format(startOfWeek(currentDate, { weekStartsOn: 0 }), "dd/MM")} – ${format(endOfWeek(currentDate, { weekStartsOn: 0 }), "dd/MM/yyyy")}`;
 
   return (
-    <div className="p-6 space-y-4 h-full flex flex-col">
+    <div className="p-6 space-y-4 h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Agenda</h1>

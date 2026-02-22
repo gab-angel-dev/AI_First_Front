@@ -675,7 +675,7 @@ export default function EmbeddingsPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-full overflow-y-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">Embeddings</h1>
 
       <div className="flex border-b">

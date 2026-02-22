@@ -181,7 +181,7 @@ export default function MetricasPage() {
   const maxAppointments = Math.max(...doctorsRanking.map((d) => d.total_agendamentos), 1);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-full overflow-y-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold">Métricas</h1>

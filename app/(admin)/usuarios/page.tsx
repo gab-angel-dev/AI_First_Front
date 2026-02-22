@@ -15,10 +15,7 @@ export default function UsuariosPage() {
     async function fetchUsers() {
       try {
         const res = await fetch("/api/admin/users");
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(data);
-        }
+        if (res.ok) setUsers(await res.json());
       } catch {
         setUsers([]);
       } finally {
@@ -31,15 +28,25 @@ export default function UsuariosPage() {
   const humanCount = users.filter((u) => u.require_human).length;
 
   return (
-    <div className="flex min-h-[calc(100vh-2rem)]">
-      <div className="w-96 shrink-0 border-r flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
+    /*
+     * h-full ocupa exatamente a altura do <main> (que é flex-1 no AdminLayout).
+     * overflow-hidden impede que qualquer filho vaze e crie scroll na página.
+     * O scroll fica DENTRO de cada coluna, não na página inteira.
+     */
+    <div className="flex h-full overflow-hidden">
+
+      {/* ── Lista de usuários ─────────────────────────────────────────────── */}
+      <div className="w-96 shrink-0 border-r flex flex-col min-h-0">
+
+        <div className="p-4 border-b flex items-center justify-between shrink-0">
           <h1 className="text-xl font-semibold">Usuários</h1>
           {humanCount > 0 && (
             <Badge variant="destructive">{humanCount} Atendimento Humano</Badge>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto p-2">
+
+        {/* Scroll só nesta coluna */}
+        <div className="flex-1 overflow-y-auto min-h-0 p-2">
           {loading ? (
             <p className="text-sm text-muted-foreground p-4">Carregando...</p>
           ) : users.length === 0 ? (
@@ -88,7 +95,11 @@ export default function UsuariosPage() {
           )}
         </div>
       </div>
-      <div className="flex-1 min-w-0">
+
+      {/* ── Área do chat — ocupa o restante, sem overflow próprio ────────────
+           O ChatPanel internamente controla seu próprio scroll de mensagens.
+      ──────────────────────────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         {selected ? (
           <ChatPanel
             phoneNumber={selected}
@@ -103,7 +114,7 @@ export default function UsuariosPage() {
             }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Selecione um usuário para ver o chat
           </div>
         )}

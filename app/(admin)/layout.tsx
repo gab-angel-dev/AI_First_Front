@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/shared/Sidebar";
+import { ThemeProvider } from "@/components/shared/ThemeProvider";
 
 export default function AdminLayout({
   children,
@@ -6,9 +7,12 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">{children}</main>
-    </div>
+    <ThemeProvider>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        {/* overflow-hidden: cada página controla seu próprio scroll interno */}
+        <main className="flex-1 min-w-0 overflow-hidden h-full">{children}</main>
+      </div>
+    </ThemeProvider>
   );
 }

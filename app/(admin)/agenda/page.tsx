@@ -2,14 +2,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Calendar, dateFnsLocalizer, View, Event } from "react-big-calendar";
-import { format, parse, startOfWeek, getDay, addMonths, subMonths, addWeeks, subWeeks, startOfMonth, endOfMonth, startOfWeek as startOfWeekFn, endOfWeek } from "date-fns";
+import {
+  format, parse, startOfWeek, getDay,
+  addMonths, subMonths, addWeeks, subWeeks,
+  startOfMonth, endOfMonth,
+  startOfWeek as startOfWeekFn, endOfWeek,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, ExternalLink, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // ─── Localizer ────────────────────────────────────────────────────────────────
@@ -44,6 +49,7 @@ interface DoctorOption {
   name: string;
   calendar_id: string;
   procedures: Array<{ nome: string; duracao_minutos: number }>;
+  insurances: string[];
 }
 
 interface UserOption {
@@ -57,7 +63,6 @@ interface CalEvent extends Event {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Gera cor consistente por nome do doutor via hash
 function doctorColor(name: string): string {
   const COLORS = [
     "#6366f1", "#22c55e", "#f59e0b", "#ef4444",
@@ -91,10 +96,19 @@ function getRangeForView(date: Date, view: View): { start: string; end: string }
       end: format(endOfWeek(e, { weekStartsOn: 0 }), "yyyy-MM-dd"),
     };
   }
-  // week
   const s = startOfWeek(date, { weekStartsOn: 0 });
   const e = endOfWeek(date, { weekStartsOn: 0 });
   return { start: format(s, "yyyy-MM-dd"), end: format(e, "yyyy-MM-dd") };
+}
+
+/** Retorna hoje no formato YYYY-MM-DD para min= do input date */
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Capitaliza primeira letra de cada palavra */
+function capitalize(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
@@ -240,33 +254,42 @@ function NewAppointmentModal({
   const [selectedUser, setSelectedUser] = useState<UserOption | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorOption | null>(null);
   const [selectedProcedure, setSelectedProcedure] = useState<{ nome: string; duracao_minutos: number } | null>(null);
+  const [selectedConvenio, setSelectedConvenio] = useState<string>("");
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [description, setDescription] = useState("");
   const [availability, setAvailability] = useState<{ available: boolean; conflict?: { summary: string } } | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Busca usuários ao digitar
   useEffect(() => {
-  if (userSearch.length < 2) { setUserOptions([]); return; }
-  const timeout = setTimeout(async () => {
-    try {
-      const res = await fetch(
-        `/api/admin/users?q=${encodeURIComponent(userSearch)}`
-      );
-      if (res.ok) setUserOptions(await res.json());
-    } catch {}
-  }, 300);
-  return () => clearTimeout(timeout);
-}, [userSearch]);
+    if (userSearch.length < 2) { setUserOptions([]); return; }
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/users?q=${encodeURIComponent(userSearch)}`);
+        if (res.ok) setUserOptions(await res.json());
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [userSearch]);
+
+  // Reset convênio ao trocar doutor
+  useEffect(() => {
+    setSelectedConvenio("");
+  }, [selectedDoctor]);
 
   async function checkAvailability() {
     if (!selectedDoctor || !startDate || !startTime || !selectedProcedure) return;
+
+    setCheckingAvailability(true);
+    setAvailability(null);
+
     const startIso = new Date(`${startDate}T${startTime}:00`).toISOString();
     const endIso = new Date(
       new Date(`${startDate}T${startTime}:00`).getTime() +
-        selectedProcedure.duracao_minutos * 60 * 1000
+      selectedProcedure.duracao_minutos * 60 * 1000
     ).toISOString();
 
     try {
@@ -274,18 +297,29 @@ function NewAppointmentModal({
         `/api/admin/agenda/availability?calendar_id=${encodeURIComponent(selectedDoctor.calendar_id)}&start=${startIso}&end=${endIso}`
       );
       if (res.ok) setAvailability(await res.json());
-    } catch {}
+    } catch {
+      setAvailability(null);
+    } finally {
+      setCheckingAvailability(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedUser || !selectedDoctor || !selectedProcedure || !startDate || !startTime) return;
 
+    // Validação: não permite agendamento no passado
+    const selectedDateTime = new Date(`${startDate}T${startTime}:00`);
+    if (selectedDateTime < new Date()) {
+      setError("Não é possível agendar para uma data/hora no passado.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const startIso = new Date(`${startDate}T${startTime}:00`).toISOString();
+      const startIso = selectedDateTime.toISOString();
       const res = await fetch("/api/admin/agenda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -293,6 +327,7 @@ function NewAppointmentModal({
           user_number: selectedUser.phone_number,
           doctor_id: selectedDoctor.id,
           procedure: selectedProcedure.nome,
+          convenio: selectedConvenio || null,
           start_time: startIso,
           description: description || "Agendado pelo painel admin",
         }),
@@ -318,6 +353,7 @@ function NewAppointmentModal({
     setSelectedUser(null);
     setSelectedDoctor(null);
     setSelectedProcedure(null);
+    setSelectedConvenio("");
     setStartDate("");
     setStartTime("");
     setDescription("");
@@ -336,9 +372,11 @@ function NewAppointmentModal({
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Passo 1 */}
+
+          {/* ── Passo 1: Paciente, Doutor, Procedimento, Convênio ── */}
           {step === 1 && (
             <>
+              {/* Paciente */}
               <div>
                 <label className="text-sm font-medium mb-1 block">Paciente *</label>
                 <Input
@@ -353,7 +391,11 @@ function NewAppointmentModal({
                         key={u.phone_number}
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
-                        onClick={() => { setSelectedUser(u); setUserSearch(u.complete_name ?? u.phone_number); setUserOptions([]); }}
+                        onClick={() => {
+                          setSelectedUser(u);
+                          setUserSearch(u.complete_name ?? u.phone_number);
+                          setUserOptions([]);
+                        }}
                       >
                         <p className="font-medium">{u.complete_name ?? u.phone_number}</p>
                         <p className="text-xs text-muted-foreground">{u.phone_number}</p>
@@ -362,10 +404,13 @@ function NewAppointmentModal({
                   </div>
                 )}
                 {selectedUser && (
-                  <p className="text-xs text-green-600 mt-1">✓ {selectedUser.complete_name ?? selectedUser.phone_number} selecionado</p>
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ {selectedUser.complete_name ?? selectedUser.phone_number} selecionado
+                  </p>
                 )}
               </div>
 
+              {/* Doutor */}
               <div>
                 <label className="text-sm font-medium mb-1 block">Doutor *</label>
                 <select
@@ -386,6 +431,7 @@ function NewAppointmentModal({
                 </select>
               </div>
 
+              {/* Procedimento */}
               {selectedDoctor && (
                 <div>
                   <label className="text-sm font-medium mb-1 block">Procedimento *</label>
@@ -401,9 +447,38 @@ function NewAppointmentModal({
                   >
                     <option value="">Selecione um procedimento</option>
                     {selectedDoctor.procedures.map((p) => (
-                      <option key={p.nome} value={p.nome}>{p.nome} ({p.duracao_minutos}min)</option>
+                      <option key={p.nome} value={p.nome}>
+                        {p.nome} ({p.duracao_minutos}min)
+                      </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {/* Convênio — populado com insurances do doutor selecionado */}
+              {selectedDoctor && (
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Convênio</label>
+                  {selectedDoctor.insurances.length > 0 ? (
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={selectedConvenio}
+                      onChange={(e) => setSelectedConvenio(e.target.value)}
+                      title="Selecionar convênio"
+                      aria-label="Selecionar convênio"
+                    >
+                      <option value="">Particular (sem convênio)</option>
+                      {selectedDoctor.insurances.map((ins) => (
+                        <option key={ins} value={ins}>
+                          {capitalize(ins)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Este doutor não possui convênios cadastrados.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -419,7 +494,7 @@ function NewAppointmentModal({
             </>
           )}
 
-          {/* Passo 2 */}
+          {/* ── Passo 2: Data, Horário, Disponibilidade ── */}
           {step === 2 && (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -428,6 +503,7 @@ function NewAppointmentModal({
                   <Input
                     type="date"
                     value={startDate}
+                    min={todayStr()} // ← bloqueia passado
                     onChange={(e) => { setStartDate(e.target.value); setAvailability(null); }}
                     required
                   />
@@ -443,18 +519,34 @@ function NewAppointmentModal({
                 </div>
               </div>
 
+              {/* Alerta se hora passada no mesmo dia */}
+              {startDate === todayStr() && startTime && (
+                (() => {
+                  const chosen = new Date(`${startDate}T${startTime}:00`);
+                  return chosen < new Date() ? (
+                    <p className="text-xs text-destructive">
+                      ⚠️ Este horário já passou. Selecione um horário futuro.
+                    </p>
+                  ) : null;
+                })()
+              )}
+
               {selectedProcedure && startDate && startTime && (
                 <div className="text-xs text-muted-foreground">
-                  Duração: {selectedProcedure.duracao_minutos} minutos → término às{" "}
+                  Duração: {selectedProcedure.duracao_minutos} min → término às{" "}
                   {new Date(
                     new Date(`${startDate}T${startTime}:00`).getTime() +
-                      selectedProcedure.duracao_minutos * 60 * 1000
+                    selectedProcedure.duracao_minutos * 60 * 1000
                   ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </div>
               )}
 
               {availability && (
-                <div className={`text-sm p-3 rounded-lg border ${availability.available ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                <div className={`text-sm p-3 rounded-lg border ${
+                  availability.available
+                    ? "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400"
+                    : "border-destructive/30 bg-destructive/10 text-destructive"
+                }`}>
                   {availability.available
                     ? "✓ Horário disponível"
                     : `✗ Conflito: ${availability.conflict?.summary}`}
@@ -462,29 +554,49 @@ function NewAppointmentModal({
               )}
 
               <div className="flex gap-2 justify-between pt-2">
-                <Button type="button" variant="outline" onClick={() => setStep(1)}>Voltar</Button>
+                <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                  Voltar
+                </Button>
                 <div className="flex gap-2">
+                  {/* Botão com feedback de carregando */}
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!startDate || !startTime}
+                    disabled={!startDate || !startTime || checkingAvailability}
                     onClick={checkAvailability}
                   >
-                    Verificar Disponibilidade
+                    {checkingAvailability ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      "Verificar Disponibilidade"
+                    )}
                   </Button>
                   <Button
                     type="button"
                     disabled={!startDate || !startTime}
-                    onClick={() => setStep(3)}
+                    onClick={() => {
+                      // Valida passado antes de avançar
+                      const chosen = new Date(`${startDate}T${startTime}:00`);
+                      if (chosen < new Date()) {
+                        setError("Não é possível agendar para uma data/hora no passado.");
+                        return;
+                      }
+                      setError(null);
+                      setStep(3);
+                    }}
                   >
                     Próximo
                   </Button>
                 </div>
               </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </>
           )}
 
-          {/* Passo 3 */}
+          {/* ── Passo 3: Observações + Resumo ── */}
           {step === 3 && (
             <>
               <div>
@@ -505,6 +617,7 @@ function NewAppointmentModal({
                   <p>👤 {selectedUser?.complete_name ?? selectedUser?.phone_number}</p>
                   <p>👨‍⚕️ {selectedDoctor?.name}</p>
                   <p>🦷 {selectedProcedure?.nome}</p>
+                  <p>🏥 {selectedConvenio ? capitalize(selectedConvenio) : "Particular"}</p>
                   <p>📅 {startDate && new Date(startDate + "T00:00:00").toLocaleDateString("pt-BR")} às {startTime}</p>
                 </CardContent>
               </Card>
@@ -512,9 +625,18 @@ function NewAppointmentModal({
               {error && <p className="text-sm text-destructive">{error}</p>}
 
               <div className="flex gap-2 justify-between pt-2">
-                <Button type="button" variant="outline" onClick={() => setStep(2)}>Voltar</Button>
+                <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                  Voltar
+                </Button>
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Criando..." : "Confirmar Agendamento"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    "Confirmar Agendamento"
+                  )}
                 </Button>
               </div>
             </>
@@ -585,7 +707,6 @@ export default function AgendaPage() {
     }
   }
 
-  // Converte para formato react-big-calendar
   const calEvents: CalEvent[] = events.map((ev) => ({
     title: `${ev.patient_name} — ${ev.procedure ?? "Consulta"}`,
     start: new Date(ev.start_time),
@@ -610,7 +731,6 @@ export default function AgendaPage() {
 
       {/* Controles */}
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Toggle view */}
         <div className="flex border rounded-md overflow-hidden">
           {(["month", "week"] as View[]).map((v) => (
             <button
@@ -625,7 +745,6 @@ export default function AgendaPage() {
           ))}
         </div>
 
-        {/* Navegação */}
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => navigate("prev")}>
             <ChevronLeft className="h-4 w-4" />
@@ -640,7 +759,6 @@ export default function AgendaPage() {
 
         <span className="text-sm font-medium capitalize">{title}</span>
 
-        {/* Filtro doutor */}
         <select
           value={filterDoctor}
           onChange={(e) => setFilterDoctor(e.target.value)}
@@ -697,7 +815,6 @@ export default function AgendaPage() {
         )}
       </div>
 
-      {/* Modais */}
       <EventDetailModal
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}

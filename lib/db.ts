@@ -1,4 +1,9 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
+
+// ─── Type parsers ─────────────────────────────────────────────────────────────
+// Por padrão o driver pg converte DATE para objeto Date do JS, o que causa
+// problemas de timezone e serialização. Forçamos retorno como string "YYYY-MM-DD".
+types.setTypeParser(types.builtins.DATE, (val: string) => val); // ex: "2025-01-15"
 
 let pool: Pool | null = null;
 
@@ -25,12 +30,10 @@ function getPool(): Pool {
   return pool;
 }
 
-// Função para obter conexão do pool
 export async function getDbConnection() {
   return await getPool().connect();
 }
 
-// Função para executar queries
 export async function query(text: string, params?: unknown[]) {
   const client = await getPool().connect();
   try {

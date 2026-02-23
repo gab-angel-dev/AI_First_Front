@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, ChevronDown, ChevronUp, Upload, FileText } from "lucide-react";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 interface EmbeddingItem {
   id: string;
   content: string;
@@ -31,43 +29,29 @@ interface InsertResult {
 type Tab = "inserir" | "visualizar" | "gerenciar";
 type InsertMethod = "texto" | "pdf";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 const CATEGORY_COLORS: Record<string, string> = {
-  sobre: "bg-blue-100 text-blue-800",
-  servicos: "bg-green-100 text-green-800",
-  regulamento: "bg-yellow-100 text-yellow-800",
+  sobre: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  servicos: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  regulamento: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
 };
 
 function categoryColor(cat: string) {
-  return CATEGORY_COLORS[cat] ?? "bg-gray-100 text-gray-800";
+  return CATEGORY_COLORS[cat] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
 }
 
-// ─── Extração PDF via CDN (evita problemas de webpack/bundling) ───────────────
-
-async function extractPdfText(
-  file: File,
-  onProgress: (msg: string) => void
-): Promise<string> {
+async function extractPdfText(file: File, onProgress: (msg: string) => void): Promise<string> {
   const PDFJS_VERSION = "3.11.174";
   const PDFJS_CDN = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
 
-  // Carrega script apenas uma vez
   if (!(window as unknown as Record<string, unknown>)["pdfjs-dist/build/pdf"]) {
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `${PDFJS_CDN}/pdf.min.js`;
-    script.onload = () => {
-      // Descubra o nome do namespace
-      console.log("keys no window após carregar pdf.js:",
-        Object.keys(window).filter(k => k.toLowerCase().includes("pdf"))
-      );
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar pdf.js"));
-    document.head.appendChild(script);
-  });
-}
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `${PDFJS_CDN}/pdf.min.js`;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Falha ao carregar pdf.js"));
+      document.head.appendChild(script);
+    });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfjsLib = (window as any)["pdfjs-dist/build/pdf"];
@@ -81,27 +65,13 @@ async function extractPdfText(
     onProgress(`Extraindo página ${i} de ${pdfDoc.numPages}...`);
     const page = await pdfDoc.getPage(i);
     const content = await page.getTextContent();
-    texto +=
-      content.items
-        .map((item: { str?: string }) => item.str ?? "")
-        .join(" ") + "\n";
+    texto += content.items.map((item: { str?: string }) => item.str ?? "").join(" ") + "\n";
   }
-
   return texto.trim();
 }
 
-// ─── Confirm Modal ────────────────────────────────────────────────────────────
-
-function ConfirmModal({
-  open,
-  message,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
+function ConfirmModal({ open, message, onConfirm, onCancel }: {
+  open: boolean; message: string; onConfirm: () => void; onCancel: () => void;
 }) {
   if (!open) return null;
   return (
@@ -110,19 +80,13 @@ function ConfirmModal({
       <div className="relative z-50 bg-background rounded-lg border p-6 shadow-lg max-w-sm w-full mx-4">
         <p className="text-sm mb-6">{message}</p>
         <div className="flex gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Button variant="destructive" size="sm" onClick={onConfirm}>
-            Confirmar
-          </Button>
+          <Button variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm}>Confirmar</Button>
         </div>
       </div>
     </div>
   );
 }
-
-// ─── Sub-aba: Inserir ─────────────────────────────────────────────────────────
 
 function TabInserir({ onSuccess }: { onSuccess: () => void }) {
   const [method, setMethod] = useState<InsertMethod>("texto");
@@ -148,29 +112,16 @@ function TabInserir({ onSuccess }: { onSuccess: () => void }) {
 
       if (method === "pdf") {
         if (!pdfFile) throw new Error("Selecione um arquivo PDF");
-
         setPdfStatus("Carregando pdf.js...");
         textoFinal = await extractPdfText(pdfFile, setPdfStatus);
-
-        if (!textoFinal) {
-          throw new Error(
-            "Nenhum texto extraído. O PDF pode ser escaneado (imagem) e não suporta extração de texto."
-          );
-        }
-
-        setPdfStatus(
-          `Texto extraído (${textoFinal.length} caracteres). Gerando embeddings...`
-        );
+        if (!textoFinal) throw new Error("Nenhum texto extraído. O PDF pode ser escaneado (imagem).");
+        setPdfStatus(`Texto extraído (${textoFinal.length} caracteres). Gerando embeddings...`);
       }
 
       const res = await fetch("/api/admin/embeddings/text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          texto: textoFinal,
-          categoria,
-          tamanho_bloco: tamanho,
-        }),
+        body: JSON.stringify({ texto: textoFinal, categoria, tamanho_bloco: tamanho }),
       });
 
       const data = await res.json();
@@ -197,18 +148,9 @@ function TabInserir({ onSuccess }: { onSuccess: () => void }) {
         <label className="text-sm font-medium mb-2 block">Método</label>
         <div className="flex gap-2">
           {(["texto", "pdf"] as InsertMethod[]).map((m) => (
-            <Button
-              key={m}
-              type="button"
-              variant={method === m ? "default" : "outline"}
-              size="sm"
-              onClick={() => setMethod(m)}
-            >
-              {m === "texto" ? (
-                <FileText className="h-4 w-4 mr-1" />
-              ) : (
-                <Upload className="h-4 w-4 mr-1" />
-              )}
+            <Button key={m} type="button" variant={method === m ? "default" : "outline"}
+              size="sm" onClick={() => setMethod(m)}>
+              {m === "texto" ? <FileText className="h-4 w-4 mr-1" /> : <Upload className="h-4 w-4 mr-1" />}
               {m === "texto" ? "Texto Manual" : "Upload de PDF"}
             </Button>
           ))}
@@ -218,37 +160,23 @@ function TabInserir({ onSuccess }: { onSuccess: () => void }) {
       {/* Categoria */}
       <div>
         <label className="text-sm font-medium mb-1 block">Categoria *</label>
-        <Input
-          value={categoria}
-          onChange={(e) => setCategoria(e.target.value.toLowerCase())}
-          placeholder="sobre, servicos, regulamento..."
-          required
-        />
+        <Input value={categoria} onChange={(e) => setCategoria(e.target.value.toLowerCase())}
+          placeholder="sobre, servicos, regulamento..." required />
         <p className="text-xs text-muted-foreground mt-1">
           Deve coincidir com as categorias usadas pelos agentes RAG
         </p>
       </div>
 
-      {/* Tamanho do bloco */}
+      {/* Tamanho */}
       <div>
         <label className="text-sm font-medium mb-1 block">
-          Tamanho do bloco:{" "}
-          <span className="font-bold">{tamanho} caracteres</span>
+          Tamanho do bloco: <span className="font-bold">{tamanho} caracteres</span>
         </label>
-        <input
-          type="range"
-          min={400}
-          max={1500}
-          step={50}
-          value={tamanho}
+        <input type="range" min={400} max={1500} step={50} value={tamanho}
           onChange={(e) => setTamanho(Number(e.target.value))}
-          className="w-full"
-          title="Tamanho do bloco em caracteres"
-          aria-label="Tamanho do bloco em caracteres"
-        />
+          className="w-full accent-primary" title="Tamanho do bloco" aria-label="Tamanho do bloco em caracteres" />
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>400</span>
-          <span>1500</span>
+          <span>400</span><span>1500</span>
         </div>
       </div>
 
@@ -256,57 +184,66 @@ function TabInserir({ onSuccess }: { onSuccess: () => void }) {
       {method === "texto" ? (
         <div>
           <label className="text-sm font-medium mb-1 block">Texto *</label>
-          <Textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder="Cole ou digite o texto aqui..."
-            rows={8}
-            required
-          />
+          <Textarea value={texto} onChange={(e) => setTexto(e.target.value)}
+            placeholder="Cole ou digite o texto aqui..." rows={8} required />
           <p className="text-xs text-muted-foreground mt-1">
-            {texto.length} caracteres · ~{Math.ceil(texto.length / tamanho)}{" "}
-            blocos estimados
+            {texto.length} caracteres · ~{Math.ceil(texto.length / tamanho)} blocos estimados
           </p>
         </div>
       ) : (
         <div>
-          <label className="text-sm font-medium mb-1 block">
-            Arquivo PDF *
-          </label>
+          <label className="text-sm font-medium mb-1 block">Arquivo PDF *</label>
+
+          {/* FIX: botão customizado em vez do input nativo — sem problemas de tema */}
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-3 w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm cursor-pointer hover:bg-accent transition-colors"
+          >
+            <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className={pdfFile ? "text-foreground" : "text-muted-foreground"}>
+              {pdfFile ? pdfFile.name : "Clique para selecionar um PDF..."}
+            </span>
+            {pdfFile && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPdfFile(null);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+                className="ml-auto text-muted-foreground hover:text-destructive transition-colors"
+                aria-label="Remover arquivo"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {/* input real escondido */}
           <input
             ref={fileRef}
             type="file"
             accept="application/pdf"
-            required
+            required={!pdfFile}
             onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background hover:file:bg-accent cursor-pointer"
-            title="Selecionar arquivo PDF"
+            className="sr-only"
             aria-label="Selecionar arquivo PDF"
           />
-          {pdfFile && (
-            <p className="text-xs text-muted-foreground mt-1">{pdfFile.name}</p>
-          )}
           <p className="text-xs text-muted-foreground mt-1">
             PDFs escaneados (imagem) não têm texto extraível
           </p>
         </div>
       )}
 
-      {pdfStatus && (
-        <p className="text-sm text-muted-foreground animate-pulse">{pdfStatus}</p>
-      )}
-
+      {pdfStatus && <p className="text-sm text-muted-foreground animate-pulse">{pdfStatus}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {result && (
         <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-1">
           <p className="font-medium">Processamento concluído</p>
           <p>Blocos gerados: {result.blocos_gerados}</p>
-          <p className="text-green-700">Inseridos: {result.inseridos}</p>
+          <p className="text-green-700 dark:text-green-400">Inseridos: {result.inseridos}</p>
           {result.duplicatas > 0 && (
-            <p className="text-yellow-700">
-              Duplicatas ignoradas: {result.duplicatas}
-            </p>
+            <p className="text-yellow-700 dark:text-yellow-400">Duplicatas ignoradas: {result.duplicatas}</p>
           )}
           {result.erros > 0 && (
             <p className="text-destructive">Erros: {result.erros}</p>
@@ -315,28 +252,15 @@ function TabInserir({ onSuccess }: { onSuccess: () => void }) {
       )}
 
       <Button type="submit" disabled={loading}>
-        {loading
-          ? "Processando..."
-          : method === "texto"
-          ? "Gerar Embeddings"
-          : "Processar PDF"}
+        {loading ? "Processando..." : method === "texto" ? "Gerar Embeddings" : "Processar PDF"}
       </Button>
     </form>
   );
 }
 
-// ─── Lista de Embeddings ──────────────────────────────────────────────────────
-
-function EmbeddingList({
-  items,
-  selectable,
-  selected,
-  onToggle,
-}: {
-  items: EmbeddingItem[];
-  selectable: boolean;
-  selected: Set<string>;
-  onToggle: (id: string) => void;
+function EmbeddingList({ items, selectable, selected, onToggle }: {
+  items: EmbeddingItem[]; selectable: boolean;
+  selected: Set<string>; onToggle: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -349,11 +273,7 @@ function EmbeddingList({
   }
 
   if (items.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        Nenhum embedding encontrado
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground text-center py-8">Nenhum embedding encontrado</p>;
   }
 
   return (
@@ -365,58 +285,32 @@ function EmbeddingList({
         const hasMore = item.content.length > 200;
 
         return (
-          <div
-            key={item.id}
-            className={`rounded-lg border p-4 transition-colors ${
-              isSelected ? "border-primary bg-primary/5" : ""
-            }`}
-          >
+          <div key={item.id}
+            className={`rounded-lg border p-4 transition-colors ${isSelected ? "border-primary bg-primary/5" : ""}`}>
             <div className="flex items-start gap-3">
               {selectable && (
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => onToggle(item.id)}
-                  className="mt-1 h-4 w-4 shrink-0"
-                  aria-label="Selecionar embedding"
-                  title="Selecionar embedding"
-                />
+                <input type="checkbox" checked={isSelected} onChange={() => onToggle(item.id)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-primary" aria-label="Selecionar embedding" />
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor(
-                      item.category
-                    )}`}
-                  >
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${categoryColor(item.category)}`}>
                     {item.category}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(item.created_at).toLocaleDateString("pt-BR")}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {item.content.length} chars
-                  </span>
+                  <span className="text-xs text-muted-foreground">{item.content.length} chars</span>
                 </div>
                 <p className="text-sm text-muted-foreground break-words">
                   {isExpanded ? item.content : preview}
                   {!isExpanded && hasMore && "..."}
                 </p>
                 {hasMore && (
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(item.id)}
-                    className="mt-1 text-xs text-primary flex items-center gap-1 hover:underline"
-                  >
-                    {isExpanded ? (
-                      <>
-                        <ChevronUp className="h-3 w-3" /> Recolher
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3 w-3" /> Ver completo
-                      </>
-                    )}
+                  <button type="button" onClick={() => toggleExpand(item.id)}
+                    className="mt-1 text-xs text-primary flex items-center gap-1 hover:underline">
+                    {isExpanded ? <><ChevronUp className="h-3 w-3" /> Recolher</>
+                      : <><ChevronDown className="h-3 w-3" /> Ver completo</>}
                   </button>
                 )}
               </div>
@@ -428,8 +322,6 @@ function EmbeddingList({
   );
 }
 
-// ─── Sub-abas Visualizar / Gerenciar ─────────────────────────────────────────
-
 function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
   const [items, setItems] = useState<EmbeddingItem[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -438,11 +330,8 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirm, setConfirm] = useState<{
-    open: boolean;
-    message: string;
-    action: () => void;
-  }>({ open: false, message: "", action: () => {} });
+  const [confirm, setConfirm] = useState<{ open: boolean; message: string; action: () => void }>
+    ({ open: false, message: "", action: () => {} });
   const [error, setError] = useState<string | null>(null);
   const LIMIT = 20;
 
@@ -456,10 +345,7 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(LIMIT),
-      });
+      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (filterCat) params.set("categoria", filterCat);
       const res = await fetch(`/api/admin/embeddings?${params}`);
       if (res.ok) {
@@ -467,36 +353,19 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
         setItems(data.items);
         setTotal(data.total);
       }
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch { setItems([]); }
+    finally { setLoading(false); }
   }, [page, filterCat]);
 
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
-
-  useEffect(() => {
-    fetchItems();
-    setSelected(new Set());
-  }, [fetchItems]);
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchItems(); setSelected(new Set()); }, [fetchItems]);
 
   function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }
 
   function toggleAll() {
-    if (selected.size === items.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(items.map((i) => i.id)));
-    }
+    setSelected(selected.size === items.length ? new Set() : new Set(items.map((i) => i.id)));
   }
 
   async function deleteSelected() {
@@ -512,76 +381,46 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
       setSelected(new Set());
       await fetchItems();
       await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao deletar");
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : "Erro ao deletar"); }
   }
 
   async function deleteCategory(cat: string) {
     try {
       setError(null);
-      const res = await fetch(
-        `/api/admin/embeddings/category/${encodeURIComponent(cat)}`,
-        { method: "DELETE" }
-      );
+      const res = await fetch(`/api/admin/embeddings/category/${encodeURIComponent(cat)}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setFilterCat("");
-      setPage(1);
-      await fetchItems();
-      await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao deletar categoria");
-    }
+      setFilterCat(""); setPage(1);
+      await fetchItems(); await fetchCategories();
+    } catch (e) { setError(e instanceof Error ? e.message : "Erro ao deletar categoria"); }
   }
 
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div className="space-y-4">
-      <ConfirmModal
-        open={confirm.open}
-        message={confirm.message}
-        onConfirm={() => {
-          confirm.action();
-          setConfirm((c) => ({ ...c, open: false }));
-        }}
-        onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
-      />
+      <ConfirmModal open={confirm.open} message={confirm.message}
+        onConfirm={() => { confirm.action(); setConfirm((c) => ({ ...c, open: false })); }}
+        onCancel={() => setConfirm((c) => ({ ...c, open: false }))} />
 
       <div className="flex items-center gap-3 flex-wrap">
-        <select
-          value={filterCat}
-          onChange={(e) => {
-            setFilterCat(e.target.value);
-            setPage(1);
-          }}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          aria-label="Filtrar por categoria"
-          title="Filtrar por categoria"
-        >
+        <select value={filterCat} onChange={(e) => { setFilterCat(e.target.value); setPage(1); }}
+          className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm"
+          aria-label="Filtrar por categoria">
           <option value="">Todas as categorias</option>
           {categories.map((c) => (
-            <option key={c.category} value={c.category}>
-              {c.category} ({c.total})
-            </option>
+            <option key={c.category} value={c.category}>{c.category} ({c.total})</option>
           ))}
         </select>
 
         {mode === "gerenciar" && filterCat && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() =>
-              setConfirm({
-                open: true,
-                message: `Deletar TODOS os embeddings da categoria "${filterCat}"? Esta ação é irreversível.`,
-                action: () => deleteCategory(filterCat),
-              })
-            }
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Deletar categoria
+          <Button variant="destructive" size="sm"
+            onClick={() => setConfirm({
+              open: true,
+              message: `Deletar TODOS os embeddings da categoria "${filterCat}"? Esta ação é irreversível.`,
+              action: () => deleteCategory(filterCat),
+            })}>
+            <Trash2 className="h-4 w-4 mr-1" />Deletar categoria
           </Button>
         )}
 
@@ -593,30 +432,18 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
       {mode === "gerenciar" && items.length > 0 && (
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={selected.size === items.length && items.length > 0}
-              onChange={toggleAll}
-              className="h-4 w-4"
-              aria-label="Selecionar todos"
-              title="Selecionar todos da página"
-            />
+            <input type="checkbox" checked={selected.size === items.length && items.length > 0}
+              onChange={toggleAll} className="h-4 w-4 accent-primary" aria-label="Selecionar todos" />
             Selecionar todos da página
           </label>
           {selected.size > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() =>
-                setConfirm({
-                  open: true,
-                  message: `Deletar ${selected.size} embedding(s) selecionado(s)? Esta ação é irreversível.`,
-                  action: deleteSelected,
-                })
-              }
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Deletar selecionados ({selected.size})
+            <Button variant="destructive" size="sm"
+              onClick={() => setConfirm({
+                open: true,
+                message: `Deletar ${selected.size} embedding(s) selecionado(s)? Esta ação é irreversível.`,
+                action: deleteSelected,
+              })}>
+              <Trash2 className="h-4 w-4 mr-1" />Deletar selecionados ({selected.size})
             </Button>
           )}
         </div>
@@ -627,42 +454,20 @@ function TabListBase({ mode }: { mode: "visualizar" | "gerenciar" }) {
       {loading ? (
         <p className="text-sm text-muted-foreground py-4">Carregando...</p>
       ) : (
-        <EmbeddingList
-          items={items}
-          selectable={mode === "gerenciar"}
-          selected={selected}
-          onToggle={toggleSelect}
-        />
+        <EmbeddingList items={items} selectable={mode === "gerenciar"}
+          selected={selected} onToggle={toggleSelect} />
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Próxima
-          </Button>
+          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
         </div>
       )}
     </div>
   );
 }
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function EmbeddingsPage() {
   const [tab, setTab] = useState<Tab>("inserir");
@@ -680,15 +485,12 @@ export default function EmbeddingsPage() {
 
       <div className="flex border-b">
         {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
+            }`}>
             {t.label}
           </button>
         ))}
@@ -696,15 +498,9 @@ export default function EmbeddingsPage() {
 
       <Card>
         <CardContent className="p-6">
-          {tab === "inserir" && (
-            <TabInserir onSuccess={() => setRefreshKey((k) => k + 1)} />
-          )}
-          {tab === "visualizar" && (
-            <TabListBase key={`vis-${refreshKey}`} mode="visualizar" />
-          )}
-          {tab === "gerenciar" && (
-            <TabListBase key={`ger-${refreshKey}`} mode="gerenciar" />
-          )}
+          {tab === "inserir" && <TabInserir onSuccess={() => setRefreshKey((k) => k + 1)} />}
+          {tab === "visualizar" && <TabListBase key={`vis-${refreshKey}`} mode="visualizar" />}
+          {tab === "gerenciar" && <TabListBase key={`ger-${refreshKey}`} mode="gerenciar" />}
         </CardContent>
       </Card>
     </div>

@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line,
+  Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { Coins, TrendingDown, TrendingUp, DollarSign } from "lucide-react";
 
@@ -61,19 +61,65 @@ function defaultRange() {
   return { start: toDateStr(start), end: toDateStr(end) };
 }
 
+/** Converte qualquer valor vindo do backend para "YYYY-MM-DD" seguro */
+function safeDateSlice(v: unknown): string {
+  return String(v).slice(0, 10);
+}
+
+/** Formata "YYYY-MM-DD" → "DD/MM" para eixo X */
+function fmtAxisDate(v: unknown): string {
+  const s = safeDateSlice(v);
+  const [, mm, dd] = s.split("-");
+  return `${dd}/${mm}`;
+}
+
+/** Formata "YYYY-MM-DD" → data pt-BR para tooltip */
+function fmtFullDate(v: unknown): string {
+  const s = safeDateSlice(v);
+  return new Date(s + "T00:00:00").toLocaleDateString("pt-BR");
+}
+
 const PERIOD_OPTIONS = [
   { label: "7 dias", days: 7 },
   { label: "30 dias", days: 30 },
   { label: "90 dias", days: 90 },
 ];
 
-const PIE_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#14b8a6", "#a855f7"];
-
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
+
+// ─── Cores via CSS variables — funcionam em dark e light ─────────────────────
+
+const C = {
+  primary:        "hsl(var(--primary))",
+  muted:          "hsl(var(--muted))",
+  mutedFg:        "hsl(var(--muted-foreground))",
+  border:         "hsl(var(--border))",
+  card:           "hsl(var(--card))",
+  cardFg:         "hsl(var(--card-foreground))",
+  // Série de dados — contraste garantido em ambos os modos
+  series: [
+    "hsl(var(--primary))",       // azul petróleo / azul claro (dark)
+    "hsl(var(--muted-foreground))",
+    "#f59e0b",
+    "#ef4444",
+    "#14b8a6",
+    "#a855f7",
+  ],
+};
+
+const TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "8px",
+  color: "hsl(var(--card-foreground))",
+  fontSize: 12,
+};
+
+const CURSOR_STYLE = { fill: "hsl(var(--muted))", opacity: 0.5 };
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
 
@@ -101,6 +147,10 @@ function MetricCard({
     </Card>
   );
 }
+
+// ─── Shared axis props ────────────────────────────────────────────────────────
+
+const axisTickProps = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -236,6 +286,7 @@ export default function CustosPage() {
 
       {/* Gráficos linha 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
         {/* Tokens por dia */}
         <Card>
           <CardHeader className="pb-2">
@@ -249,14 +300,36 @@ export default function CustosPage() {
               <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sem dados</div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={tokensByDay}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="dia" tick={{ fontSize: 11 }} tickFormatter={(v: string) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtTokens} />
-                  <Tooltip formatter={(v: number) => [fmtTokens(v), ""]} labelFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR")} />
-                  <Legend />
-                  <Bar dataKey="entrada" name="Entrada" stackId="a" fill="#6366f1" />
-                  <Bar dataKey="saida" name="Saída" stackId="a" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                <BarChart data={tokensByDay} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                  <XAxis
+                    dataKey="dia"
+                    tick={axisTickProps}
+                    tickLine={false}
+                    axisLine={{ stroke: C.border }}
+                    tickFormatter={fmtAxisDate}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    tick={axisTickProps}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={fmtTokens}
+                    width={40}
+                  />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={CURSOR_STYLE}
+                    formatter={(v: number) => fmtTokens(v)}
+                    labelFormatter={fmtFullDate}
+                  />
+                  <Legend
+                    iconType="square"
+                    iconSize={10}
+                    wrapperStyle={{ fontSize: 12, color: "hsl(var(--muted-foreground))" }}
+                  />
+                  <Bar dataKey="entrada" name="Entrada" stackId="a" fill={C.series[0]} />
+                  <Bar dataKey="saida" name="Saída" stackId="a" fill={C.series[1]} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -275,33 +348,61 @@ export default function CustosPage() {
             ) : byModel.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sem dados</div>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={byModel}
+              <ResponsiveContainer width="100%" height={Math.max(260, byModel.length * 52)}>
+                <BarChart
+                  data={byModel}
+                  layout="vertical"
+                  margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={C.border} />
+                  <XAxis
+                    type="number"
+                    tick={axisTickProps}
+                    tickLine={false}
+                    axisLine={{ stroke: C.border }}
+                    tickFormatter={fmtTokens}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="model_name"
+                    tick={axisTickProps}
+                    tickLine={false}
+                    axisLine={false}
+                    width={90}
+                  />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    cursor={CURSOR_STYLE}
+                    formatter={(v: number) => fmtTokens(v)}
+                  />
+                  <Bar
                     dataKey="total_tokens"
-                    nameKey="model_name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    label={({ model_name, percent }: { model_name: string; percent: number }) =>
-                      `${model_name} ${(percent * 100).toFixed(0)}%`
-                    }
-                    labelLine={false}
+                    name="Tokens"
+                    radius={[0, 4, 4, 0]}
+                    label={(props: { x?: number; y?: number; width?: number; height?: number; value?: number }) => (
+                      <text
+                        x={(props.x ?? 0) + (props.width ?? 0) + 8}
+                        y={(props.y ?? 0) + (props.height ?? 0) / 2}
+                        dominantBaseline="middle"
+                        fontSize={11}
+                        style={{ fill: "hsl(var(--foreground))" }}
+                      >
+                        {fmtTokens(props.value ?? 0)}
+                      </text>
+                    )}
                   >
                     {byModel.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell key={i} fill={C.series[i % C.series.length]} />
                     ))}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => [fmtTokens(v), "Tokens"]} />
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Custo por dia — linha cheia */}
+      {/* Custo por dia */}
       <Card>
         <CardHeader className="pb-2">
           <p className="font-semibold">Custo por Dia (USD)</p>
@@ -314,15 +415,38 @@ export default function CustosPage() {
             <div className="h-64 flex items-center justify-center text-sm text-muted-foreground">Sem dados no período</div>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={costByDay}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="dia" tick={{ fontSize: 11 }} tickFormatter={(v: string) => v.slice(5)} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v.toFixed(4)}`} />
-                <Tooltip
-                  formatter={(v: number) => [`$${v.toFixed(6)}`, "Custo USD"]}
-                  labelFormatter={(v: string) => new Date(v + "T00:00:00").toLocaleDateString("pt-BR")}
+              <LineChart data={costByDay} margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.border} />
+                <XAxis
+                  dataKey="dia"
+                  tick={axisTickProps}
+                  tickLine={false}
+                  axisLine={{ stroke: C.border }}
+                  tickFormatter={fmtAxisDate}   // ← FIX: sem concatenar "T00:00:00"
+                  interval="preserveStartEnd"
                 />
-                <Line type="monotone" dataKey="custo_usd" name="Custo USD" stroke="#6366f1" strokeWidth={2} dot={false} />
+                <YAxis
+                  tick={axisTickProps}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => `$${v.toFixed(4)}`}
+                  width={64}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  cursor={{ stroke: C.mutedFg, strokeWidth: 1, strokeDasharray: "4 4" }}
+                  formatter={(v: number) => [`$${v.toFixed(6)}`, "Custo USD"]}
+                  labelFormatter={fmtFullDate}   // ← FIX: usa safeDateSlice internamente
+                />
+                <Line
+                  type="linear"
+                  dataKey="custo_usd"
+                  name="Custo USD"
+                  stroke={C.primary}
+                  strokeWidth={2}
+                  dot={{ r: 3, strokeWidth: 2, stroke: C.primary, fill: "hsl(var(--card))" }}
+                  activeDot={{ r: 5 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -353,7 +477,7 @@ export default function CustosPage() {
                 </thead>
                 <tbody>
                   {byUser.map((u) => (
-                    <tr key={u.phone_number} className="border-b last:border-0">
+                    <tr key={u.phone_number} className="border-b last:border-0 hover:bg-muted/40 transition-colors">
                       <td className="py-2">
                         <p className="font-medium truncate max-w-[180px]">
                           {u.complete_name ?? u.phone_number}
@@ -362,9 +486,9 @@ export default function CustosPage() {
                           <p className="text-xs text-muted-foreground">{u.phone_number}</p>
                         )}
                       </td>
-                      <td className="py-2 text-right">{u.interacoes}</td>
-                      <td className="py-2 text-right">{fmtTokens(u.total_tokens)}</td>
-                      <td className="py-2 text-right">${u.estimated_cost_usd.toFixed(6)}</td>
+                      <td className="py-2 text-right tabular-nums">{u.interacoes}</td>
+                      <td className="py-2 text-right tabular-nums">{fmtTokens(u.total_tokens)}</td>
+                      <td className="py-2 text-right tabular-nums">${u.estimated_cost_usd.toFixed(6)}</td>
                     </tr>
                   ))}
                 </tbody>

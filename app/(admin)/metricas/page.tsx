@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { MessageSquare, Users, Calendar, TrendingUp } from "lucide-react";
+import { MessageSquare, Users, Calendar, TrendingUp, FileDown, Loader2 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +69,10 @@ function defaultRange() {
   return { start: toDateStr(start), end: toDateStr(end) };
 }
 
+function formatDateBR(iso: string) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR");
+}
+
 const PERIOD_OPTIONS = [
   { label: "7 dias", days: 7 },
   { label: "30 dias", days: 30 },
@@ -101,11 +105,112 @@ function MetricCard({
         </div>
         <p className="text-3xl font-bold">
           {typeof value === "number" ? value.toLocaleString("pt-BR") : value}
-          {suffix && <span className="text-lg font-normal text-muted-foreground ml-1">{suffix}</span>}
+          {suffix && (
+            <span className="text-lg font-normal text-muted-foreground ml-1">{suffix}</span>
+          )}
         </p>
       </CardContent>
     </Card>
   );
+}
+
+// ─── Export PDF ───────────────────────────────────────────────────────────────
+
+async function exportToPDF(
+  contentRef: React.RefObject<HTMLDivElement>,
+  range: { start: string; end: string }
+) {
+  // Importação dinâmica para não aumentar o bundle inicial
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
+
+  const element = contentRef.current;
+  if (!element) return;
+
+  const canvas = await html2canvas(element, {
+    scale: 2,           // alta resolução
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    // Ignora o botão de exportar para não aparecer no PDF
+    ignoreElements: (el) => el.id === "export-pdf-btn",
+  });
+
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const contentW = pageW - margin * 2;
+
+  // Cabeçalho
+  pdf.setFontSize(16);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Relatório de Métricas — AI First Painel", margin, margin + 6);
+
+  pdf.setFontSize(9);
+  pdf.setFont("helvetica", "normal");
+  pdf.setTextColor(120, 120, 120);
+  pdf.text(
+    `Período: ${formatDateBR(range.start)} a ${formatDateBR(range.end)}   •   Gerado em: ${new Date().toLocaleString("pt-BR")}`,
+    margin,
+    margin + 12
+  );
+  pdf.setTextColor(0, 0, 0);
+
+  // Linha separadora
+  const headerH = margin + 16;
+  pdf.setDrawColor(200, 200, 200);
+  pdf.line(margin, headerH, pageW - margin, headerH);
+
+  // Conteúdo capturado
+  const imgStartY = headerH + 4;
+  const availableH = pageH - imgStartY - margin;
+  const imgRatio = canvas.width / canvas.height;
+  const imgH = contentW / imgRatio;
+
+  if (imgH <= availableH) {
+    // Cabe em uma página
+    pdf.addImage(imgData, "PNG", margin, imgStartY, contentW, imgH);
+  } else {
+    // Pagina o conteúdo
+    let yOffset = 0;
+    let isFirstPage = true;
+
+    while (yOffset < imgH) {
+      if (!isFirstPage) {
+        pdf.addPage();
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text("AI First Painel — Relatório de Métricas", margin, 8);
+        pdf.setTextColor(0, 0, 0);
+      }
+
+      const startY = isFirstPage ? imgStartY : 12;
+      const sliceH = isFirstPage ? availableH : pageH - startY - margin;
+
+      // Recorta a fatia do canvas
+      const srcY = (yOffset / imgH) * canvas.height;
+      const srcH = (sliceH / imgH) * canvas.height;
+
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = srcH;
+      const ctx = sliceCanvas.getContext("2d")!;
+      ctx.drawImage(canvas, 0, -srcY);
+
+      pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, startY, contentW, sliceH);
+
+      yOffset += sliceH;
+      isFirstPage = false;
+    }
+  }
+
+  const fileName = `metricas_${range.start}_${range.end}.pdf`;
+  pdf.save(fileName);
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -122,7 +227,10 @@ export default function MetricasPage() {
   const [doctorsRanking, setDoctorsRanking] = useState<DoctorRanking[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const fetchAll = useCallback(async (start: string, end: string) => {
     setLoading(true);
@@ -178,6 +286,15 @@ export default function MetricasPage() {
     fetchAll(range.start, range.end);
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await exportToPDF(contentRef, range);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const maxAppointments = Math.max(...doctorsRanking.map((d) => d.total_agendamentos), 1);
 
   return (
@@ -186,8 +303,8 @@ export default function MetricasPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold">Métricas</h1>
 
-        {/* Filtro de período */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtros de período */}
           {PERIOD_OPTIONS.map((opt) => (
             <Button
               key={opt.days}
@@ -225,209 +342,264 @@ export default function MetricasPage() {
               </Button>
             </div>
           )}
+
+          {/* Botão exportar PDF */}
+          <Button
+            id="export-pdf-btn"
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={loading || exporting}
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4 mr-2" />
+            )}
+            {exporting ? "Exportando..." : "Exportar PDF"}
+          </Button>
         </div>
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total de Mensagens"
-          value={loading ? "—" : (summary?.total_messages ?? 0)}
-          icon={MessageSquare}
-        />
-        <MetricCard
-          title="Total de Usuários"
-          value={loading ? "—" : (summary?.total_users ?? 0)}
-          icon={Users}
-        />
-        <MetricCard
-          title="Agendamentos"
-          value={loading ? "—" : (summary?.total_appointments ?? 0)}
-          icon={Calendar}
-        />
-        <MetricCard
-          title="Média Msg/Conversa"
-          value={loading ? "—" : (summary?.avg_messages_per_conversation ?? 0)}
-          icon={TrendingUp}
-        />
-      </div>
+      {/* Área capturável pelo html2canvas */}
+      <div ref={contentRef} className="space-y-6 bg-background">
+        {/* Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Total de Mensagens"
+            value={loading ? "—" : (summary?.total_messages ?? 0)}
+            icon={MessageSquare}
+          />
+          <MetricCard
+            title="Total de Usuários"
+            value={loading ? "—" : (summary?.total_users ?? 0)}
+            icon={Users}
+          />
+          <MetricCard
+            title="Agendamentos"
+            value={loading ? "—" : (summary?.total_appointments ?? 0)}
+            icon={Calendar}
+          />
+          <MetricCard
+            title="Média Msg/Conversa"
+            value={loading ? "—" : (summary?.avg_messages_per_conversation ?? 0)}
+            icon={TrendingUp}
+          />
+        </div>
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Agendamentos por mês */}
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="font-semibold">Agendamentos por Mês</p>
-            <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                Carregando...
-              </div>
-            ) : appointmentsByMonth.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                Sem dados
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={appointmentsByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="mes_label" tick={{ fontSize: 12 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="total" name="Agendamentos" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Distribuição de procedimentos */}
-        <Card>
-          <CardHeader className="pb-2">
-            <p className="font-semibold">Distribuição de Procedimentos</p>
-            <p className="text-xs text-muted-foreground">Top 6 + Outros</p>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                Carregando...
-              </div>
-            ) : procedures.length === 0 ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                Sem dados
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={procedures}
-                    dataKey="total"
-                    nameKey="procedure"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    label={({ procedure, percent }) =>
-                      `${procedure} ${(percent * 100).toFixed(0)}%`
-                    }
-                    labelLine={false}
-                  >
-                    {procedures.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v: number) => [v, "Agendamentos"]} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Mensagens por dia — linha cheia */}
-      <Card>
-        <CardHeader className="pb-2">
-          <p className="font-semibold">Mensagens por Dia</p>
-          <p className="text-xs text-muted-foreground">Separado por remetente</p>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-              Carregando...
-            </div>
-          ) : messagesByDay.length === 0 ? (
-            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-              Sem dados no período
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={messagesByDay}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="dia"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v: string) => v.slice(5)} // MM-DD
-                />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  labelFormatter={(v: string) =>
-                    new Date(v + "T00:00:00").toLocaleDateString("pt-BR")
-                  }
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="user"
-                  name="Usuário"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ai"
-                  name="IA"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="human"
-                  name="Atendente"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Ranking de doutores */}
-      <Card>
-        <CardHeader className="pb-2">
-          <p className="font-semibold">Ranking de Doutores</p>
-          <p className="text-xs text-muted-foreground">Agendamentos no período</p>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
-          ) : doctorsRanking.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum doutor cadastrado</p>
-          ) : (
-            <div className="space-y-4">
-              {doctorsRanking.map((d) => (
-                <div key={d.name} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{d.name}</span>
-                      <Badge variant={d.active ? "default" : "secondary"} className="text-xs">
-                        {d.active ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </div>
-                    <span className="text-sm font-semibold">{d.total_agendamentos}</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{
-                        width: `${(d.total_agendamentos / maxAppointments) * 100}%`,
-                      }}
-                    />
-                  </div>
+        {/* Gráficos linha 1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Agendamentos por mês */}
+          <Card>
+            <CardHeader className="pb-2">
+              <p className="font-semibold">Agendamentos por Mês</p>
+              <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Carregando...
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : appointmentsByMonth.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Sem dados
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={appointmentsByMonth}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="mes_label" tick={{ fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar
+                      dataKey="total"
+                      name="Agendamentos"
+                      fill="#6366f1"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Distribuição de procedimentos */}
+          <Card>
+            <CardHeader className="pb-2">
+              <p className="font-semibold">Distribuição de Procedimentos</p>
+              <p className="text-xs text-muted-foreground">Top 6 + Outros</p>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Carregando...
+                </div>
+              ) : procedures.length === 0 ? (
+                <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                  Sem dados
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={procedures}
+                      dataKey="total"
+                      nameKey="procedure"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      label={({ procedure, percent }) =>
+                        `${procedure} ${(percent * 100).toFixed(0)}%`
+                      }
+                      labelLine={false}
+                    >
+                      {procedures.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: number) => [v, "Agendamentos"]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Mensagens por dia — FIX: gráfico de linhas clássico */}
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="font-semibold">Mensagens por Dia</p>
+            <p className="text-xs text-muted-foreground">Separado por remetente</p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+                Carregando...
+              </div>
+            ) : messagesByDay.length === 0 ? (
+              <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+                Sem dados no período
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={messagesByDay}
+                  margin={{ top: 8, right: 24, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="dia"
+                    tick={{ fontSize: 11, fill: "#6b7280" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "#e5e7eb" }}
+                    tickFormatter={(v: string) => {
+                      // Exibe DD/MM para legibilidade
+                      const [, mm, dd] = v.split("-");
+                      return `${dd}/${mm}`;
+                    }}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "#6b7280" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                      fontSize: 12,
+                    }}
+                    labelFormatter={(v: string) => formatDateBR(v)}
+                    formatter={(value: number, name: string) => [
+                      value.toLocaleString("pt-BR"),
+                      name,
+                    ]}
+                  />
+                  <Legend
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="user"
+                    name="Usuário"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ r: 4, strokeWidth: 2, stroke: "#6366f1", fill: "#ffffff" }}
+                    activeDot={{ r: 5 }}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="ai"
+                    name="IA"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    dot={{ r: 4, strokeWidth: 2, stroke: "#94a3b8", fill: "#ffffff" }}
+                    activeDot={{ r: 5 }}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey="human"
+                    name="Atendente"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    dot={{ r: 4, strokeWidth: 2, stroke: "#22c55e", fill: "#ffffff" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Ranking de doutores */}
+        <Card>
+          <CardHeader className="pb-2">
+            <p className="font-semibold">Ranking de Doutores</p>
+            <p className="text-xs text-muted-foreground">Agendamentos no período</p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Carregando...</p>
+            ) : doctorsRanking.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum doutor cadastrado</p>
+            ) : (
+              <div className="space-y-4">
+                {doctorsRanking.map((d) => (
+                  <div key={d.name} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{d.name}</span>
+                        <Badge
+                          variant={d.active ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {d.active ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                      <span className="text-sm font-semibold">{d.total_agendamentos}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{
+                          width: `${(d.total_agendamentos / maxAppointments) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

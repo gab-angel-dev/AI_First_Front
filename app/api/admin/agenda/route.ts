@@ -81,16 +81,33 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { user_number, doctor_id, procedure: proc, start_time, description } = body as {
+    const {
+      user_number,
+      doctor_id,
+      procedure: proc,
+      convenio,  // ← novo campo
+      start_time,
+      description,
+    } = body as {
       user_number: string;
       doctor_id: string;
       procedure: string;
+      convenio?: string | null;
       start_time: string;
       description?: string;
     };
 
     if (!user_number || !doctor_id || !proc || !start_time) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
+    }
+
+    // Validação: não permite agendamento no passado
+    const startDate = new Date(start_time);
+    if (startDate < new Date()) {
+      return NextResponse.json(
+        { error: "Não é possível agendar para uma data/hora no passado" },
+        { status: 400 }
+      );
     }
 
     // Busca dados do doutor
@@ -116,7 +133,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Calcula end_time
-    const startDate = new Date(start_time);
     const endDate = new Date(startDate.getTime() + procedureData.duracao_minutos * 60 * 1000);
     const end_time = endDate.toISOString();
 
@@ -125,7 +141,10 @@ export async function POST(req: NextRequest) {
       `SELECT complete_name, metadata FROM users WHERE phone_number = $1`,
       [user_number]
     );
-    const patient = userRes.rows[0] as { complete_name: string | null; metadata: Record<string, unknown> | null } | undefined;
+    const patient = userRes.rows[0] as {
+      complete_name: string | null;
+      metadata: Record<string, unknown> | null;
+    } | undefined;
     const patientName = patient?.complete_name ?? user_number;
 
     // Cria evento no Google Calendar
@@ -163,9 +182,14 @@ export async function POST(req: NextRequest) {
       const dataStr = startDate.toLocaleDateString("pt-BR");
       const horaInicio = startDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const horaFim = endDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-      const convenio = (patient?.metadata as Record<string, unknown> | null)?.convenio_tipo ?? "Não informado";
 
-      const mensagem = `🔔 *Novo Agendamento Realizado*\n\n👤 Paciente: ${patientName}\n📞 Telefone: ${user_number}\n📅 Data: ${dataStr}\n🕐 Horário: ${horaInicio} às ${horaFim}\nConvênio: ${convenio}\nProcedimento: ${proc}\nObservações: ${description ?? "—"}\n\nVerifique a agenda ou entre em contato.`;
+      // Prioridade: convenio enviado pelo painel → metadata do usuário → "Não informado"
+      const convenioLabel = convenio
+        ? convenio.charAt(0).toUpperCase() + convenio.slice(1)
+        : (patient?.metadata as Record<string, unknown> | null)?.convenio_tipo as string
+          ?? "Não informado";
+
+      const mensagem = `🔔 *Novo Agendamento Realizado*\n\n👤 Paciente: ${patientName}\n📞 Telefone: ${user_number}\n📅 Data: ${dataStr}\n🕐 Horário: ${horaInicio} às ${horaFim}\nConvênio: ${convenioLabel}\nProcedimento: ${proc}\nObservações: ${description ?? "—"}\n\nVerifique a agenda ou entre em contato.`;
 
       sendText(doctor.doctor_number, mensagem).catch((e) =>
         console.error("Erro ao notificar doutor:", e)

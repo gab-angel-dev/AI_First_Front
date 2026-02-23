@@ -5,23 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Trash2,
-  Upload,
-  FileText,
-  Image,
-  Video,
-  Music,
-  ExternalLink,
-} from "lucide-react";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import { Trash2, Upload, FileText, Image, Video, Music, ExternalLink } from "lucide-react";
 
 interface FileItem {
   id: number;
   category: string;
-  fileName: string;
-  mediaType: string;
+  filename: string;   // snake_case — igual ao que a API retorna
+  mediatype: string;  // snake_case — igual ao que a API retorna
   path: string;
   created_at: string;
 }
@@ -31,53 +21,28 @@ interface CategoryItem {
   total: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 const ACCEPTED_EXTENSIONS = ".pdf,.docx,.jpg,.jpeg,.png,.mp4,.mp3";
 
 const MEDIA_TYPE_LABELS: Record<string, string> = {
-  document: "Documento",
-  image: "Imagem",
-  video: "Vídeo",
-  audio: "Áudio",
+  document: "Documento", image: "Imagem", video: "Vídeo", audio: "Áudio",
 };
 
-const MEDIA_TYPE_VARIANTS: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  document: "default",
-  image: "secondary",
-  video: "destructive",
-  audio: "outline",
+const MEDIA_TYPE_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  document: "default", image: "secondary", video: "destructive", audio: "outline",
 };
 
 function MediaIcon({ type }: { type: string }) {
   const cls = "h-4 w-4 shrink-0";
   switch (type) {
-    case "image":
-      return <Image className={cls} />;
-    case "video":
-      return <Video className={cls} />;
-    case "audio":
-      return <Music className={cls} />;
-    default:
-      return <FileText className={cls} />;
+    case "image": return <Image className={cls} />;
+    case "video": return <Video className={cls} />;
+    case "audio": return <Music className={cls} />;
+    default:      return <FileText className={cls} />;
   }
 }
 
-// ─── Confirm Modal ────────────────────────────────────────────────────────────
-
-function ConfirmModal({
-  open,
-  message,
-  onConfirm,
-  onCancel,
-}: {
-  open: boolean;
-  message: string;
-  onConfirm: () => void;
-  onCancel: () => void;
+function ConfirmModal({ open, message, onConfirm, onCancel }: {
+  open: boolean; message: string; onConfirm: () => void; onCancel: () => void;
 }) {
   if (!open) return null;
   return (
@@ -86,19 +51,13 @@ function ConfirmModal({
       <div className="relative z-50 bg-background rounded-lg border p-6 shadow-lg max-w-sm w-full mx-4">
         <p className="text-sm mb-6">{message}</p>
         <div className="flex gap-2 justify-end">
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Cancelar
-          </Button>
-          <Button variant="destructive" size="sm" onClick={onConfirm}>
-            Confirmar
-          </Button>
+          <Button variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm}>Confirmar</Button>
         </div>
       </div>
     </div>
   );
 }
-
-// ─── Upload Form ──────────────────────────────────────────────────────────────
 
 function UploadForm({ onSuccess }: { onSuccess: () => void }) {
   const [categoria, setCategoria] = useState("");
@@ -110,20 +69,15 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file || !categoria) return;
-
     setLoading(true);
     setError(null);
-
     try {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("categoria", categoria);
-
       const res = await fetch("/api/admin/files", { method: "POST", body: fd });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Erro ao fazer upload");
-
       setCategoria("");
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -141,9 +95,7 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
         <label className="text-sm font-medium mb-1 block">Categoria *</label>
         <Input
           value={categoria}
-          onChange={(e) =>
-            setCategoria(e.target.value.toLowerCase().replace(/\s+/g, "_"))
-          }
+          onChange={(e) => setCategoria(e.target.value.toLowerCase().replace(/\s+/g, "_"))}
           placeholder="cardapio, localizacao, convenios..."
           required
         />
@@ -154,21 +106,42 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
 
       <div>
         <label className="text-sm font-medium mb-1 block">Arquivo *</label>
+
+        {/* Botão customizado — tema correto em light e dark, exibe nome do arquivo */}
+        <div
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-3 w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm cursor-pointer hover:bg-accent transition-colors"
+        >
+          <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className={file ? "text-foreground truncate" : "text-muted-foreground"}>
+            {file
+              ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`
+              : "Clique para selecionar um arquivo..."}
+          </span>
+          {file && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFile(null);
+                if (fileRef.current) fileRef.current.value = "";
+              }}
+              className="ml-auto text-muted-foreground hover:text-destructive transition-colors shrink-0 text-lg leading-none"
+              aria-label="Remover arquivo"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <input
           ref={fileRef}
           type="file"
           accept={ACCEPTED_EXTENSIONS}
-          required
+          required={!file}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background hover:file:bg-accent cursor-pointer"
-          title="Selecionar arquivo"
+          className="sr-only"
           aria-label="Selecionar arquivo"
         />
-        {file && (
-          <p className="text-xs text-muted-foreground mt-1">
-            {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-          </p>
-        )}
         <p className="text-xs text-muted-foreground mt-1">
           Aceito: pdf, docx, jpg, jpeg, png, mp4, mp3 — máx. 16MB
         </p>
@@ -176,7 +149,7 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" disabled={loading || !file}>
         <Upload className="h-4 w-4 mr-2" />
         {loading ? "Enviando..." : "Enviar Arquivo"}
       </Button>
@@ -184,14 +157,9 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ─── File List ────────────────────────────────────────────────────────────────
-
-function FileList({
-  files,
-  onDelete,
-}: {
+function FileList({ files, onDelete }: {
   files: FileItem[];
-  onDelete: (id: number, fileName: string) => void;
+  onDelete: (id: number, filename: string) => void;
 }) {
   if (files.length === 0) {
     return (
@@ -204,17 +172,13 @@ function FileList({
   return (
     <div className="space-y-2">
       {files.map((f) => (
-        <div
-          key={f.id}
-          className="flex items-center gap-3 rounded-lg border p-4"
-        >
-          <MediaIcon type={f.mediaType} />
-
+        <div key={f.id} className="flex items-center gap-3 rounded-lg border p-4">
+          <MediaIcon type={f.mediatype} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-sm font-medium truncate">{f.fileName}</span>
-              <Badge variant={MEDIA_TYPE_VARIANTS[f.mediaType] ?? "outline"} className="text-xs shrink-0">
-                {MEDIA_TYPE_LABELS[f.mediaType] ?? f.mediaType}
+              <span className="text-sm font-medium truncate">{f.filename}</span>
+              <Badge variant={MEDIA_TYPE_VARIANTS[f.mediatype] ?? "outline"} className="text-xs shrink-0">
+                {MEDIA_TYPE_LABELS[f.mediatype] ?? f.mediatype}
               </Badge>
               <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground shrink-0">
                 {f.category}
@@ -224,24 +188,14 @@ function FileList({
               {new Date(f.created_at).toLocaleDateString("pt-BR")}
             </p>
           </div>
-
           <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={f.path}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Abrir arquivo"
-            >
+            <a href={f.path} target="_blank" rel="noopener noreferrer" title="Abrir arquivo">
               <Button variant="outline" size="sm">
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </a>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDelete(f.id, f.fileName)}
-              title="Deletar arquivo"
-            >
+            <Button variant="outline" size="sm"
+              onClick={() => onDelete(f.id, f.filename)} title="Deletar arquivo">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -251,18 +205,13 @@ function FileList({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function ArquivosPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [filterCat, setFilterCat] = useState("");
   const [loading, setLoading] = useState(true);
-  const [confirm, setConfirm] = useState<{
-    open: boolean;
-    message: string;
-    action: () => void;
-  }>({ open: false, message: "", action: () => {} });
+  const [confirm, setConfirm] = useState<{ open: boolean; message: string; action: () => void }>
+    ({ open: false, message: "", action: () => {} });
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"upload" | "lista">("lista");
 
@@ -290,10 +239,10 @@ export default function ArquivosPage() {
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { fetchFiles(); }, [fetchFiles]);
 
-  async function handleDelete(id: number, fileName: string) {
+  async function handleDelete(id: number, filename: string) {
     setConfirm({
       open: true,
-      message: `Deletar "${fileName}"? O arquivo será removido do servidor e do banco de dados. Esta ação é irreversível.`,
+      message: `Deletar "${filename}"? O arquivo será removido do servidor e do banco de dados. Esta ação é irreversível.`,
       action: async () => {
         try {
           setError(null);
@@ -321,25 +270,18 @@ export default function ArquivosPage() {
       <ConfirmModal
         open={confirm.open}
         message={confirm.message}
-        onConfirm={() => {
-          confirm.action();
-          setConfirm((c) => ({ ...c, open: false }));
-        }}
+        onConfirm={() => { confirm.action(); setConfirm((c) => ({ ...c, open: false })); }}
         onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
       />
 
-      {/* Tabs */}
       <div className="flex border-b">
         {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
+            }`}>
             {t.label}
           </button>
         ))}
@@ -348,24 +290,13 @@ export default function ArquivosPage() {
       <Card>
         <CardContent className="p-6">
           {tab === "upload" ? (
-            <UploadForm
-              onSuccess={() => {
-                fetchFiles();
-                fetchCategories();
-                setTab("lista");
-              }}
-            />
+            <UploadForm onSuccess={() => { fetchFiles(); fetchCategories(); setTab("lista"); }} />
           ) : (
             <div className="space-y-4">
-              {/* Filtro */}
               <div className="flex items-center gap-3 flex-wrap">
-                <select
-                  value={filterCat}
-                  onChange={(e) => setFilterCat(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  aria-label="Filtrar por categoria"
-                  title="Filtrar por categoria"
-                >
+                <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm"
+                  aria-label="Filtrar por categoria">
                   <option value="">Todas as categorias</option>
                   {categories.map((c) => (
                     <option key={c.category} value={c.category}>

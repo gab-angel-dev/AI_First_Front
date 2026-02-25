@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/shared/Sidebar";
 import { ThemeProvider } from "@/components/shared/ThemeProvider";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default function AdminLayout({
   children,
@@ -8,11 +9,12 @@ export default function AdminLayout({
 }) {
   return (
     <ThemeProvider>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        {/* overflow-hidden: cada página controla seu próprio scroll interno */}
-        <main className="flex-1 min-w-0 overflow-hidden h-full">{children}</main>
-      </div>
+      <ToastProvider>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar />
+          <main className="flex-1 min-w-0 overflow-hidden h-full">{children}</main>
+        </div>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

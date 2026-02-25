@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Upload, FileText, Image, Video, Music, ExternalLink } from "lucide-react";
+import {
+  Trash2, Upload, FileText, Image, Video, Music,
+  ExternalLink, FolderOpen, Filter, X,
+} from "lucide-react";
 
 interface FileItem {
   id: number;
   category: string;
-  filename: string;   // snake_case — igual ao que a API retorna
-  mediatype: string;  // snake_case — igual ao que a API retorna
+  filename: string;
+  mediatype: string;
   path: string;
   created_at: string;
 }
@@ -23,21 +26,25 @@ interface CategoryItem {
 
 const ACCEPTED_EXTENSIONS = ".pdf,.docx,.jpg,.jpeg,.png,.mp4,.mp3";
 
-const MEDIA_TYPE_LABELS: Record<string, string> = {
-  document: "Documento", image: "Imagem", video: "Vídeo", audio: "Áudio",
+const MEDIA_TYPE_CONFIG: Record<string, {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+  color: string;
+}> = {
+  document: { label: "Documento", variant: "default",     color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20" },
+  image:    { label: "Imagem",    variant: "secondary",   color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" },
+  video:    { label: "Vídeo",     variant: "destructive", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/20" },
+  audio:    { label: "Áudio",     variant: "outline",     color: "text-violet-600 bg-violet-50 dark:bg-violet-900/20" },
 };
 
-const MEDIA_TYPE_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  document: "default", image: "secondary", video: "destructive", audio: "outline",
-};
-
-function MediaIcon({ type }: { type: string }) {
-  const cls = "h-4 w-4 shrink-0";
+function MediaIcon({ type, className = "h-5 w-5" }: { type: string; className?: string }) {
+  const cfg = MEDIA_TYPE_CONFIG[type];
+  const iconClass = `${className} shrink-0`;
   switch (type) {
-    case "image": return <Image className={cls} />;
-    case "video": return <Video className={cls} />;
-    case "audio": return <Music className={cls} />;
-    default:      return <FileText className={cls} />;
+    case "image": return <Image className={iconClass} />;
+    case "video": return <Video className={iconClass} />;
+    case "audio": return <Music className={iconClass} />;
+    default:      return <FileText className={iconClass} />;
   }
 }
 
@@ -47,12 +54,12 @@ function ConfirmModal({ open, message, onConfirm, onCancel }: {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative z-50 bg-background rounded-lg border p-6 shadow-lg max-w-sm w-full mx-4">
-        <p className="text-sm mb-6">{message}</p>
+      <div className="fixed inset-0 modal-backdrop" onClick={onCancel} />
+      <div className="relative z-50 bg-card rounded-2xl border p-6 shadow-elevation-xl max-w-sm w-full mx-4 animate-scale-in">
+        <p className="text-sm leading-relaxed mb-6">{message}</p>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
-          <Button variant="destructive" size="sm" onClick={onConfirm}>Confirmar</Button>
+          <Button variant="destructive" size="sm" onClick={onConfirm}>Excluir</Button>
         </div>
       </div>
     </div>
@@ -90,46 +97,57 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+    <form onSubmit={handleSubmit} className="space-y-5 max-w-lg">
       <div>
-        <label className="text-sm font-medium mb-1 block">Categoria *</label>
+        <label className="text-xs font-medium text-foreground mb-1.5 block">Categoria *</label>
         <Input
           value={categoria}
           onChange={(e) => setCategoria(e.target.value.toLowerCase().replace(/\s+/g, "_"))}
           placeholder="cardapio, localizacao, convenios..."
           required
         />
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-1.5">
           Lowercase sem espaços — usado como diretório na VPS
         </p>
       </div>
 
       <div>
-        <label className="text-sm font-medium mb-1 block">Arquivo *</label>
+        <label className="text-xs font-medium text-foreground mb-1.5 block">Arquivo *</label>
 
-        {/* Botão customizado — tema correto em light e dark, exibe nome do arquivo */}
+        {/* Drop zone */}
         <div
           onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-3 w-full rounded-md border border-input bg-background px-4 py-2.5 text-sm cursor-pointer hover:bg-accent transition-colors"
+          className={[
+            "flex items-center gap-3 w-full rounded-xl border-2 border-dashed px-4 py-5 text-sm cursor-pointer transition-all duration-150",
+            file
+              ? "border-primary/40 bg-primary/5"
+              : "border-border hover:border-primary/40 hover:bg-accent/50",
+          ].join(" ")}
         >
-          <Upload className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className={file ? "text-foreground truncate" : "text-muted-foreground"}>
-            {file
-              ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`
-              : "Clique para selecionar um arquivo..."}
-          </span>
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${file ? "bg-primary/10" : "bg-muted"}`}>
+            <Upload className={`h-4 w-4 ${file ? "text-primary" : "text-muted-foreground"}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            {file ? (
+              <>
+                <p className="font-medium text-foreground truncate text-xs">{file.name}</p>
+                <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-foreground text-xs">Clique para selecionar</p>
+                <p className="text-xs text-muted-foreground">PDF, DOCX, JPG, PNG, MP4, MP3 — máx. 16MB</p>
+              </>
+            )}
+          </div>
           {file && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setFile(null);
-                if (fileRef.current) fileRef.current.value = "";
-              }}
-              className="ml-auto text-muted-foreground hover:text-destructive transition-colors shrink-0 text-lg leading-none"
+              onClick={(e) => { e.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
+              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
               aria-label="Remover arquivo"
             >
-              ×
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
@@ -142,16 +160,17 @@ function UploadForm({ onSuccess }: { onSuccess: () => void }) {
           className="sr-only"
           aria-label="Selecionar arquivo"
         />
-        <p className="text-xs text-muted-foreground mt-1">
-          Aceito: pdf, docx, jpg, jpeg, png, mp4, mp3 — máx. 16MB
-        </p>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-      <Button type="submit" disabled={loading || !file}>
-        <Upload className="h-4 w-4 mr-2" />
-        {loading ? "Enviando..." : "Enviar Arquivo"}
+      <Button type="submit" disabled={loading || !file || !categoria}>
+        <Upload className="h-3.5 w-3.5 mr-1.5" />
+        {loading ? "Enviando..." : "Enviar arquivo"}
       </Button>
     </form>
   );
@@ -163,44 +182,62 @@ function FileList({ files, onDelete }: {
 }) {
   if (files.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
-        Nenhum arquivo cadastrado
-      </p>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <FolderOpen className="h-10 w-10 text-muted-foreground mb-3 opacity-50" />
+        <p className="text-sm font-medium text-foreground mb-1">Nenhum arquivo</p>
+        <p className="text-xs text-muted-foreground">Faça upload do primeiro arquivo</p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {files.map((f) => (
-        <div key={f.id} className="flex items-center gap-3 rounded-lg border p-4">
-          <MediaIcon type={f.mediatype} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-sm font-medium truncate">{f.filename}</span>
-              <Badge variant={MEDIA_TYPE_VARIANTS[f.mediatype] ?? "outline"} className="text-xs shrink-0">
-                {MEDIA_TYPE_LABELS[f.mediatype] ?? f.mediatype}
-              </Badge>
-              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground shrink-0">
-                {f.category}
-              </span>
+      {files.map((f) => {
+        const cfg = MEDIA_TYPE_CONFIG[f.mediatype] ?? { label: f.mediatype, variant: "outline" as const, color: "" };
+        return (
+          <div
+            key={f.id}
+            className="flex items-center gap-3 rounded-xl border bg-card p-3 transition-all hover:shadow-elevation-sm hover:border-border/80 group"
+          >
+            {/* Icon */}
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${cfg.color}`}>
+              <MediaIcon type={f.mediatype} className="h-4 w-4" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {new Date(f.created_at).toLocaleDateString("pt-BR")}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <a href={f.path} target="_blank" rel="noopener noreferrer" title="Abrir arquivo">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="h-4 w-4" />
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <span className="text-sm font-medium truncate text-foreground">{f.filename}</span>
+                <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>
+                <span className="tag-pill">{f.category}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {new Date(f.created_at).toLocaleDateString("pt-BR", {
+                  day: "2-digit", month: "short", year: "numeric",
+                })}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <a href={f.path} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="icon-sm" title="Abrir arquivo">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              </a>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={() => onDelete(f.id, f.filename)}
+                title="Deletar arquivo"
+                className="hover:border-destructive/40 hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
-            </a>
-            <Button variant="outline" size="sm"
-              onClick={() => onDelete(f.id, f.filename)} title="Deletar arquivo">
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -229,11 +266,8 @@ export default function ArquivosPage() {
       if (filterCat) params.set("categoria", filterCat);
       const res = await fetch(`/api/admin/files?${params}`);
       if (res.ok) setFiles(await res.json());
-    } catch {
-      setFiles([]);
-    } finally {
-      setLoading(false);
-    }
+    } catch { setFiles([]); }
+    finally { setLoading(false); }
   }, [filterCat]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
@@ -242,7 +276,7 @@ export default function ArquivosPage() {
   async function handleDelete(id: number, filename: string) {
     setConfirm({
       open: true,
-      message: `Deletar "${filename}"? O arquivo será removido do servidor e do banco de dados. Esta ação é irreversível.`,
+      message: `Deletar "${filename}"? O arquivo será removido permanentemente do servidor.`,
       action: async () => {
         try {
           setError(null);
@@ -259,13 +293,19 @@ export default function ArquivosPage() {
   }
 
   const tabs = [
-    { id: "lista" as const, label: "Arquivos" },
+    { id: "lista" as const, label: "Arquivos", count: files.length },
     { id: "upload" as const, label: "Upload" },
   ];
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Arquivos</h1>
+    <div className="h-full overflow-y-auto p-5">
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Arquivos</h1>
+          <p className="page-subtitle">Gerenciamento de arquivos de mídia</p>
+        </div>
+      </div>
 
       <ConfirmModal
         open={confirm.open}
@@ -274,45 +314,103 @@ export default function ArquivosPage() {
         onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
       />
 
-      <div className="flex border-b">
+      {/* Tabs */}
+      <div className="flex border-b border-border mb-5">
         {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={[
+              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2",
               tab === t.id
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}>
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            ].join(" ")}
+          >
             {t.label}
+            {t.count !== undefined && (
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${
+                tab === t.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              }`}>
+                {t.count}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-5">
           {tab === "upload" ? (
             <UploadForm onSuccess={() => { fetchFiles(); fetchCategories(); setTab("lista"); }} />
           ) : (
             <div className="space-y-4">
+              {/* Filters */}
               <div className="flex items-center gap-3 flex-wrap">
-                <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background text-foreground px-3 text-sm"
-                  aria-label="Filtrar por categoria">
-                  <option value="">Todas as categorias</option>
-                  {categories.map((c) => (
-                    <option key={c.category} value={c.category}>
-                      {c.category} ({c.total})
-                    </option>
-                  ))}
-                </select>
-                <span className="text-sm text-muted-foreground ml-auto">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                  <select
+                    value={filterCat}
+                    onChange={(e) => setFilterCat(e.target.value)}
+                    className="h-8 rounded-lg border border-input bg-background text-foreground px-3 text-xs"
+                    aria-label="Filtrar por categoria"
+                  >
+                    <option value="">Todas as categorias</option>
+                    {categories.map((c) => (
+                      <option key={c.category} value={c.category}>
+                        {c.category} ({c.total})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {filterCat && (
+                  <button
+                    onClick={() => setFilterCat("")}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    Limpar filtro
+                  </button>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
                   {files.length} arquivo{files.length !== 1 ? "s" : ""}
                 </span>
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <div className="rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              {/* Category chips */}
+              {categories.length > 0 && !filterCat && (
+                <div className="flex flex-wrap gap-1.5">
+                  {categories.map((c) => (
+                    <button
+                      key={c.category}
+                      onClick={() => setFilterCat(c.category)}
+                      className="tag-pill hover:bg-accent hover:border-primary/30 transition-colors cursor-pointer"
+                    >
+                      {c.category}
+                      <span className="ml-1 text-muted-foreground">{c.total}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {loading ? (
-                <p className="text-sm text-muted-foreground py-4">Carregando...</p>
+                <div className="space-y-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 rounded-xl border p-3 animate-pulse">
+                      <div className="w-9 h-9 bg-muted rounded-lg" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3.5 bg-muted rounded w-40" />
+                        <div className="h-3 bg-muted rounded w-24" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <FileList files={files} onDelete={handleDelete} />
               )}

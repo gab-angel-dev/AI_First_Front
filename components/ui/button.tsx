@@ -1,27 +1,58 @@
+// ─── button.tsx ───────────────────────────────────────────────────────────────
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  [
+    "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium",
+    "ring-offset-background transition-all duration-150 ease-out",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "select-none",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        default: [
+          "bg-primary text-primary-foreground",
+          "hover:bg-primary/90 hover:shadow-md hover:-translate-y-px",
+          "active:translate-y-0 active:shadow-none",
+          "shadow-sm",
+        ].join(" "),
+        destructive: [
+          "bg-destructive text-destructive-foreground",
+          "hover:bg-destructive/90 hover:shadow-md hover:-translate-y-px",
+          "active:translate-y-0",
+          "shadow-sm",
+        ].join(" "),
+        outline: [
+          "border border-input bg-background",
+          "hover:bg-accent hover:text-accent-foreground hover:border-primary/30",
+          "active:bg-accent/80",
+        ].join(" "),
+        secondary: [
+          "bg-secondary text-secondary-foreground",
+          "hover:bg-secondary/80 hover:-translate-y-px",
+          "shadow-sm",
+        ].join(" "),
+        ghost: [
+          "hover:bg-accent hover:text-accent-foreground",
+          "active:bg-accent/80",
+        ].join(" "),
         link: "text-primary underline-offset-4 hover:underline",
+        success: [
+          "bg-[hsl(var(--success))] text-white",
+          "hover:bg-[hsl(var(--success))/0.9] hover:-translate-y-px shadow-sm",
+        ].join(" "),
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-lg px-6 text-sm",
+        xl: "h-11 rounded-lg px-8 text-sm font-semibold",
+        icon: "h-9 w-9",
+        "icon-sm": "h-8 w-8",
       },
     },
     defaultVariants: {
@@ -33,9 +64,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
+    VariantProps<typeof buttonVariants> {}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => {

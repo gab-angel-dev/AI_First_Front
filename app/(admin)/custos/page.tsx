@@ -117,7 +117,6 @@ export default function CustosPage() {
   const [byDay, setByDay] = useState<CostByDay[]>([]);
   const [byModel, setByModel] = useState<CostByModel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
 
   const { error: toastError, success: toastSuccess } = useToast();
 
@@ -130,8 +129,28 @@ export default function CustosPage() {
         fetch(`/api/admin/costs/by-day?${p}`),
         fetch(`/api/admin/costs/by-model?${p}`),
       ]);
-      if (!sRes.ok) throw new Error("Erro ao buscar custos");
-      const [s, d, m] = await Promise.all([sRes.json(), dRes.json(), mRes.json()]);
+      
+      // Validação abrangente: checa se TODOS retornaram 2xx
+      if (!sRes.ok || !dRes.ok || !mRes.ok) {
+        throw new Error("Erro ao buscar custos da API");
+      }
+
+      // Função segura para fazer parse do JSON e evitar erro de HTML
+      const parseJSON = async (res: Response) => {
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null; // Retorna null em vez de estourar a tela se não for JSON válido
+        }
+      };
+
+      const [s, d, m] = await Promise.all([
+        parseJSON(sRes), 
+        parseJSON(dRes), 
+        parseJSON(mRes)
+      ]);
+
       setSummary(s);
       setByDay(Array.isArray(d) ? d : []);
       setByModel(Array.isArray(m) ? m : []);
@@ -140,7 +159,7 @@ export default function CustosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toastError]);
 
   useEffect(() => { fetchAll(range.start, range.end); }, [fetchAll, range]);
 

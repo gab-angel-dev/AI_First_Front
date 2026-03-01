@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import {
   MessageSquare, Users, Calendar, TrendingUp,
-  FileDown, Loader2, ArrowUpRight, ArrowDownRight,
+  FileDown, Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
@@ -30,12 +30,21 @@ interface ProcedureItem { procedure: string; total: number; }
 interface DoctorRanking { name: string; active: boolean; total_agendamentos: number; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function toDateStr(d: Date) { return d.toISOString().slice(0, 10); }
+// CORRIGIDO: usa horário local em vez de UTC para evitar virada de dia em fuso UTC-3
+function toDateStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function defaultRange() {
-  const end = new Date(), start = new Date();
-  start.setDate(end.getDate() - 29);
+  const start = new Date();
+  const end = new Date();
+  end.setDate(start.getDate() + 30);
   return { start: toDateStr(start), end: toDateStr(end) };
 }
+
 function fmtDateBR(iso: string) {
   return new Date(iso + "T00:00:00").toLocaleDateString("pt-BR");
 }
@@ -208,7 +217,7 @@ function ChartCard({
 
 // ─── Custom Pie Label ─────────────────────────────────────────────────────────
 const renderPieLabel = ({
-  cx, cy, midAngle, innerRadius, outerRadius, procedure, percent,
+  cx, cy, midAngle, innerRadius, outerRadius, percent,
 }: any) => {
   if (percent < 0.06) return null;
   const RADIAN = Math.PI / 180;
@@ -274,8 +283,9 @@ export default function MetricasPage() {
   useEffect(() => { fetchAll(range.start, range.end); }, [fetchAll, range]);
 
   function applyPreset(days: number) {
-    const end = new Date(), start = new Date();
-    start.setDate(end.getDate() - (days - 1));
+    const start = new Date();
+    const end = new Date();
+    end.setDate(start.getDate() + days);
     setRange({ start: toDateStr(start), end: toDateStr(end) });
     setActivePreset(days);
     setCustomMode(false);

@@ -13,15 +13,21 @@ export async function GET(req: NextRequest) {
   try {
     const [messagesRes, usersRes, appointmentsRes, avgRes] = await Promise.all([
       query(
-        `SELECT COUNT(*) AS total FROM chat WHERE created_at >= $1 AND created_at <= $2::date + interval '1 day'`,
+        `SELECT COUNT(*) AS total FROM chat
+         WHERE created_at >= $1::date
+           AND created_at < ($2::date + interval '1 day')`,
         [start, end]
       ),
       query(
-        `SELECT COUNT(*) AS total FROM users WHERE created_at >= $1 AND created_at <= $2::date + interval '1 day'`,
+        `SELECT COUNT(*) AS total FROM users
+         WHERE created_at >= $1::date
+           AND created_at < ($2::date + interval '1 day')`,
         [start, end]
       ),
       query(
-        `SELECT COUNT(*) AS total FROM calendar_events WHERE start_time >= $1 AND start_time <= $2::date + interval '1 day'`,
+        `SELECT COUNT(*) AS total FROM calendar_events
+         WHERE start_time >= $1::date
+           AND start_time < ($2::date + interval '1 day')`,
         [start, end]
       ),
       query(
@@ -30,7 +36,8 @@ export async function GET(req: NextRequest) {
                 ELSE ROUND(COUNT(*)::numeric / COUNT(DISTINCT session_id), 1)
            END AS avg
          FROM chat
-         WHERE created_at >= $1 AND created_at <= $2::date + interval '1 day'`,
+         WHERE created_at >= $1::date
+           AND created_at < ($2::date + interval '1 day')`,
         [start, end]
       ),
     ]);

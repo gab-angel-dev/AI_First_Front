@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
          COUNT(ce.id) AS total_agendamentos
        FROM doctor_rules dr
        LEFT JOIN calendar_events ce
-         ON ce.dr_responsible = dr.name
-         AND ce.start_time >= $1
-         AND ce.start_time <= $2::date + interval '1 day'
+         ON TRIM(LOWER(ce.dr_responsible)) = TRIM(LOWER(dr.name))
+        AND ce.start_time >= $1::date
+        AND ce.start_time < ($2::date + interval '1 day')
        GROUP BY dr.name, dr.active
        ORDER BY total_agendamentos DESC, dr.name ASC`,
       [start, end]

@@ -7,6 +7,7 @@ const MODEL_PRICES: Record<string, { input: number; output: number }> = {
   "gpt-4.1":         { input: 2.00,  output: 8.00 },
   "gpt-4.1-mini":    { input: 0.40,  output: 1.60 },
   "llama3.1-8b":     { input: 0.10,  output: 0.10},
+  "gpt-oss-120b":     { input: 0.35,  output: 0.75},
 };
 
 export function calcularCusto(

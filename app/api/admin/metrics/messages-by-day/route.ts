@@ -13,11 +13,12 @@ export async function GET(req: NextRequest) {
   try {
     const result = await query(
       `SELECT
-         DATE(created_at) AS dia,
+         (DATE(created_at AT TIME ZONE 'America/Sao_Paulo'))::text AS dia,
          sender,
          COUNT(*) AS total
        FROM chat
-       WHERE created_at >= $1 AND created_at <= $2::date + interval '1 day'
+       WHERE created_at >= $1::date
+         AND created_at < ($2::date + interval '1 day')
        GROUP BY dia, sender
        ORDER BY dia ASC`,
       [start, end]

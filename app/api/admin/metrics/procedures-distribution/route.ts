@@ -13,11 +13,12 @@ export async function GET(req: NextRequest) {
   try {
     const result = await query(
       `SELECT
-         COALESCE(NULLIF(procedure, ''), 'Não informado') AS procedure,
+         INITCAP(LOWER(COALESCE(NULLIF(procedure, ''), 'Não informado'))) AS procedure,
          COUNT(*) AS total
        FROM calendar_events
-       WHERE start_time >= $1 AND start_time <= $2::date + interval '1 day'
-       GROUP BY procedure
+       WHERE start_time >= $1::date
+         AND start_time < ($2::date + interval '1 day')
+       GROUP BY INITCAP(LOWER(COALESCE(NULLIF(procedure, ''), 'Não informado')))
        ORDER BY total DESC`,
       [start, end]
     );

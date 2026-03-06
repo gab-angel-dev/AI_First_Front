@@ -51,7 +51,10 @@ interface ByUser {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function defaultRange() {
@@ -61,19 +64,16 @@ function defaultRange() {
   return { start: toDateStr(start), end: toDateStr(end) };
 }
 
-/** Converte qualquer valor vindo do backend para "YYYY-MM-DD" seguro */
 function safeDateSlice(v: unknown): string {
   return String(v).slice(0, 10);
 }
 
-/** Formata "YYYY-MM-DD" → "DD/MM" para eixo X */
 function fmtAxisDate(v: unknown): string {
   const s = safeDateSlice(v);
   const [, mm, dd] = s.split("-");
   return `${dd}/${mm}`;
 }
 
-/** Formata "YYYY-MM-DD" → data pt-BR para tooltip */
 function fmtFullDate(v: unknown): string {
   const s = safeDateSlice(v);
   return new Date(s + "T00:00:00").toLocaleDateString("pt-BR");
@@ -91,18 +91,13 @@ function fmtTokens(n: number): string {
   return String(n);
 }
 
-// ─── Cores via CSS variables — funcionam em dark e light ─────────────────────
-
 const C = {
-  primary:        "hsl(var(--primary))",
-  muted:          "hsl(var(--muted))",
-  mutedFg:        "hsl(var(--muted-foreground))",
-  border:         "hsl(var(--border))",
-  card:           "hsl(var(--card))",
-  cardFg:         "hsl(var(--card-foreground))",
-  // Série de dados — contraste garantido em ambos os modos
+  primary:  "hsl(var(--primary))",
+  muted:    "hsl(var(--muted))",
+  mutedFg:  "hsl(var(--muted-foreground))",
+  border:   "hsl(var(--border))",
   series: [
-    "hsl(var(--primary))",       // azul petróleo / azul claro (dark)
+    "hsl(var(--primary))",
     "hsl(var(--muted-foreground))",
     "#f59e0b",
     "#ef4444",
@@ -124,10 +119,7 @@ const CURSOR_STYLE = { fill: "hsl(var(--muted))", opacity: 0.5 };
 // ─── Metric Card ─────────────────────────────────────────────────────────────
 
 function MetricCard({
-  title,
-  value,
-  sub,
-  icon: Icon,
+  title, value, sub, icon: Icon,
 }: {
   title: string;
   value: string;
@@ -147,8 +139,6 @@ function MetricCard({
     </Card>
   );
 }
-
-// ─── Shared axis props ────────────────────────────────────────────────────────
 
 const axisTickProps = { fontSize: 11, fill: "hsl(var(--muted-foreground))" };
 
@@ -320,7 +310,7 @@ export default function CustosPage() {
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
                     cursor={CURSOR_STYLE}
-                    formatter={(v: number) => fmtTokens(v)}
+                    formatter={(v: number | undefined) => [fmtTokens(v ?? 0)]}
                     labelFormatter={fmtFullDate}
                   />
                   <Legend
@@ -373,16 +363,16 @@ export default function CustosPage() {
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
                     cursor={CURSOR_STYLE}
-                    formatter={(v: number) => fmtTokens(v)}
+                    formatter={(v: number | undefined) => [fmtTokens(v ?? 0)]}
                   />
                   <Bar
                     dataKey="total_tokens"
                     name="Tokens"
                     radius={[0, 4, 4, 0]}
-                    label={(props: { x?: number; y?: number; width?: number; height?: number; value?: number }) => (
+                    label={(props: any) => (
                       <text
-                        x={(props.x ?? 0) + (props.width ?? 0) + 8}
-                        y={(props.y ?? 0) + (props.height ?? 0) / 2}
+                        x={(Number(props.x) || 0) + (Number(props.width) || 0) + 8}
+                        y={(Number(props.y) || 0) + (Number(props.height) || 0) / 2}
                         dominantBaseline="middle"
                         fontSize={11}
                         style={{ fill: "hsl(var(--foreground))" }}
@@ -422,7 +412,7 @@ export default function CustosPage() {
                   tick={axisTickProps}
                   tickLine={false}
                   axisLine={{ stroke: C.border }}
-                  tickFormatter={fmtAxisDate}   // ← FIX: sem concatenar "T00:00:00"
+                  tickFormatter={fmtAxisDate}
                   interval="preserveStartEnd"
                 />
                 <YAxis
@@ -435,8 +425,8 @@ export default function CustosPage() {
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   cursor={{ stroke: C.mutedFg, strokeWidth: 1, strokeDasharray: "4 4" }}
-                  formatter={(v: number) => [`$${v.toFixed(6)}`, "Custo USD"]}
-                  labelFormatter={fmtFullDate}   // ← FIX: usa safeDateSlice internamente
+                  formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, "Custo USD"]}
+                  labelFormatter={fmtFullDate}
                 />
                 <Line
                   type="linear"

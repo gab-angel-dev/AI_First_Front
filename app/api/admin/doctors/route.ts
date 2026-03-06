@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import type { DoctorRule } from "@/lib/types";
+import type { DoctorRule, Procedure } from "@/lib/types";
 
 export interface DoctorListItem {
   id: string;
@@ -8,21 +8,13 @@ export interface DoctorListItem {
   doctor_number: string | null;
   calendar_id: string;
   active: boolean;
-  procedures: ProcedureItem[];
+  procedures: Procedure[];
   available_weekdays: number[];
   insurances: string[] | null;
 }
 
-interface ProcedureItem {
-  nome: string;
-  duracao_minutos: number;
-  preco: number | "definir_com_doutor";
-  descricao?: string | null;
-  triagem?: string | null;
-}
-
 function rowToDoctor(row: Record<string, unknown>): DoctorListItem {
-  const procedures = (row.procedures as ProcedureItem[] | null) ?? [];
+  const procedures = (row.procedures as Procedure[] | null) ?? [];
   return {
     id: String(row.id),
     name: String(row.name),
@@ -62,7 +54,7 @@ export interface CreateDoctorPayload {
   doctor_number?: string | null;
   calendar_id: string;
   active: boolean;
-  procedures: ProcedureItem[];
+  procedures: Procedure[];
   available_weekdays: number[];
   working_hours: {
     manha: { inicio: string; fim: string };
@@ -147,7 +139,7 @@ export async function POST(req: NextRequest) {
       doctor_number: row.doctor_number ? String(row.doctor_number) : "",
       calendar_id: String(row.calendar_id),
       active: Boolean(row.active),
-      procedures: (row.procedures as ProcedureItem[]) ?? [],
+      procedures: (row.procedures as Procedure[]) ?? [],
       available_weekdays: (row.available_weekdays as number[]) ?? [],
       working_hours: (row.working_hours as DoctorRule["working_hours"]) ?? {},
       insurances: (row.insurances as string[]) ?? [],

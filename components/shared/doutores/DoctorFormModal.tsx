@@ -515,9 +515,9 @@ function doctorToFormValues(d: DoctorRule): DoctorFormValues {
         }))
       : [{ ...emptyProcedure, descricao: null, triagem: null }],
     available_weekdays: d.available_weekdays ?? [1, 2, 3, 4, 5],
-    working_hours: d.working_hours ?? {
-      manha: { inicio: "08:00", fim: "12:00" },
-      tarde: { inicio: "14:00", fim: "18:00" },
+    working_hours: {
+      manha: d.working_hours?.manha ?? { inicio: "08:00", fim: "12:00" },
+      tarde: d.working_hours?.tarde,
     },
     insurances: d.insurances ?? [],
     restrictions: d.restrictions ?? null,

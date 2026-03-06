@@ -23,7 +23,6 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as SchedulerWebhookBody;
     console.log("Payload recebido:", JSON.stringify(body, null, 2));
 
-    // O scheduler envia o payload diretamente no body (sem wrapper)
     const { numero, mensagem } = (body.payload ?? body) as SchedulerPayload;
 
     if (!numero || !mensagem) {
@@ -37,22 +36,15 @@ export async function POST(req: NextRequest) {
     console.log(`📱 Número: ${numero}`);
     console.log(`💬 Mensagem: ${mensagem}`);
 
-    // Envia via Evolution API
-    const sent = await sendText(numero, mensagem);
+    await sendText(numero, mensagem);
 
-    if (sent) {
-      // Salva no histórico de chat
-      await query(
-        `INSERT INTO chat (session_id, sender, agent_name, message)
-         VALUES ($1, 'ai', 'lembrete', $2)`,
-        [numero, JSON.stringify({ type: "ai", content: mensagem })]
-      ).catch((e) => console.error("Erro ao salvar lembrete no chat:", e));
+    await query(
+      `INSERT INTO chat (session_id, sender, agent_name, message)
+       VALUES ($1, 'ai', 'lembrete', $2)`,
+      [numero, JSON.stringify({ type: "ai", content: mensagem })]
+    ).catch((e) => console.error("Erro ao salvar lembrete no chat:", e));
 
-      console.log(`✅ Mensagem enviada com sucesso para ${numero}!`);
-    } else {
-      console.warn(`⚠️ sendText retornou falsy para ${numero}`);
-    }
-
+    console.log(`✅ Mensagem enviada com sucesso para ${numero}!`);
     console.log("=".repeat(60) + "\n");
 
     return NextResponse.json({ status: "enviado", numero }, { status: 200 });

@@ -75,7 +75,7 @@ const CURSOR_STYLE = { fill: "hsl(var(--muted))", opacity: 0.6 };
 
 // ─── Export PDF ───────────────────────────────────────────────────────────────
 async function exportToPDF(
-  contentRef: React.RefObject<HTMLDivElement>,
+  contentRef: React.RefObject<HTMLDivElement | null>,
   range: { start: string; end: string }
 ) {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
@@ -247,7 +247,7 @@ export default function MetricasPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const contentRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const { error: toastError, success: toastSuccess } = useToast();
 
   const fetchAll = useCallback(async (start: string, end: string) => {
@@ -438,7 +438,7 @@ export default function MetricasPage() {
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [v, "Agendamentos"]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number | undefined) => [v ?? 0, "Agendamentos"]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex-1 space-y-2">
@@ -474,7 +474,7 @@ export default function MetricasPage() {
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 cursor={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeDasharray: "4 4" }}
-                labelFormatter={(v: string) => fmtDateBR(v)}
+                labelFormatter={(v: unknown) => fmtDateBR(String(v))}
               />
               <Legend iconType="circle" iconSize={8}
                 wrapperStyle={{ fontSize: 12, paddingTop: 12, color: "hsl(var(--muted-foreground))" }} />

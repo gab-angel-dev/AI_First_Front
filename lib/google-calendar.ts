@@ -3,7 +3,12 @@ import { OAuth2Client } from "google-auth-library";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 
-function buildClient(): { cal: ReturnType<typeof google.calendar>; oauth2: OAuth2Client } {
+let _oauth2: OAuth2Client | null = null;
+let _cal: ReturnType<typeof google.calendar> | null = null;
+
+function getClient(): { cal: ReturnType<typeof google.calendar>; oauth2: OAuth2Client } {
+  if (_cal && _oauth2) return { cal: _cal, oauth2: _oauth2 };
+
   const tokenJson = process.env.GOOGLE_CALENDAR_TOKEN_JSON;
   if (!tokenJson) {
     throw new Error("GOOGLE_CALENDAR_TOKEN_JSON não configurada no .env");
@@ -15,13 +20,14 @@ function buildClient(): { cal: ReturnType<typeof google.calendar>; oauth2: OAuth
   } catch {
     throw new Error("GOOGLE_CALENDAR_TOKEN_JSON inválida — verifique o JSON");
   }
-  const oauth2 = new google.auth.OAuth2(
+
+  _oauth2 = new google.auth.OAuth2(
     tokenData.client_id as string,
     tokenData.client_secret as string,
     "http://localhost"
   );
 
-  oauth2.setCredentials({
+  _oauth2.setCredentials({
     access_token: tokenData.token as string,
     refresh_token: tokenData.refresh_token as string,
     scope: SCOPES.join(" "),
@@ -31,8 +37,8 @@ function buildClient(): { cal: ReturnType<typeof google.calendar>; oauth2: OAuth
       : undefined,
   });
 
-  const cal = google.calendar({ version: "v3", auth: oauth2 });
-  return { cal, oauth2 };
+  _cal = google.calendar({ version: "v3", auth: _oauth2 });
+  return { cal: _cal, oauth2: _oauth2 };
 }
 
 export interface CalendarEvent {
@@ -47,7 +53,7 @@ export async function verificarDisponibilidade(
   startTime: string,
   endTime: string
 ): Promise<{ available: boolean; conflict?: CalendarEvent }> {
-  const { cal } = buildClient();
+  const { cal } = getClient();
   const res = await cal.events.list({
     calendarId,
     timeMin: startTime,
@@ -78,7 +84,7 @@ export async function adicionarEvento(
   endTime: string,
   description = ""
 ): Promise<CalendarEvent> {
-  const { cal } = buildClient();
+  const { cal } = getClient();
   const res = await cal.events.insert({
     calendarId,
     requestBody: {
@@ -102,6 +108,6 @@ export async function deletarEvento(
   calendarId: string,
   eventId: string
 ): Promise<void> {
-  const { cal } = buildClient();
+  const { cal } = getClient();
   await cal.events.delete({ calendarId, eventId });
 }

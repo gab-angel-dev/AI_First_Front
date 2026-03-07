@@ -10,6 +10,16 @@ function headers() {
   };
 }
 
+/**
+ * Converte um Date para string ISO sem offset (local naive),
+ * interpretada no fuso America/Sao_Paulo.
+ * Ex: 2026-03-02T07:00:00 (sem Z) → scheduler interpreta como SP
+ */
+function toSaoPauloNaiveISO(date: Date): string {
+  const local = date.toLocaleString("sv-SE", { timeZone: "America/Sao_Paulo" }).replace(" ", "T");
+  return `${local}-03:00`;
+}
+
 export async function createSchedulerMessage(
   eventId: string,
   numero: string,
@@ -23,8 +33,8 @@ export async function createSchedulerMessage(
   const schedule = new Date(scheduleTime);
   const sendDate = new Date(schedule.getTime() - HOURS_BEFORE * 60 * 60 * 1000);
 
-  // Garante formato ISO sem offset (Z no final)
-  const sendDateIso = sendDate.toISOString();
+  // Envia horário em formato local SP (sem Z/offset) para o scheduler
+  const sendDateIso = toSaoPauloNaiveISO(sendDate);
 
   const payload = {
     id: eventId,
@@ -46,14 +56,13 @@ export async function createSchedulerMessage(
 
   if (!res.ok) {
     const text = await res.text();
-    // 409 = já existe, não é erro crítico
     if (res.status === 409) {
       console.warn(`Scheduler: lembrete já existe para ${eventId}`);
       return;
     }
     console.error(`Scheduler erro ${res.status}: ${text}`);
   } else {
-    console.log(`Scheduler: lembrete criado para ${eventId} em ${sendDateIso}`);
+    console.log(`Scheduler: lembrete criado para ${eventId} em ${sendDateIso} (SP)`);
   }
 }
 
@@ -63,8 +72,6 @@ export async function deleteSchedulerMessage(eventId: string): Promise<void> {
     return;
   }
 
-  // Google Calendar event IDs podem conter caracteres especiais (@, _)
-  // que precisam ser URL-encoded
   const encodedId = encodeURIComponent(eventId);
 
   const res = await fetch(`${BASE_URL}/messages/${encodedId}`, {
@@ -74,7 +81,6 @@ export async function deleteSchedulerMessage(eventId: string): Promise<void> {
   });
 
   if (!res.ok) {
-    // 404 = já foi deletado ou nunca existiu, não é erro crítico
     if (res.status === 404) {
       console.warn(`Scheduler: lembrete ${eventId} não encontrado (já deletado?)`);
       return;

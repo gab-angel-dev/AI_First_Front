@@ -36,18 +36,26 @@ function formatTime(date: Date): string {
   return new Date(date).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   });
 }
 
 function formatDateGroup(date: Date): string {
   const d = new Date(date);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  const now = new Date();
 
-  if (d.toDateString() === today.toDateString()) return "Hoje";
-  if (d.toDateString() === yesterday.toDateString()) return "Ontem";
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  const toDay = (dt: Date) =>
+    dt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+
+  if (toDay(d) === toDay(now)) return "Hoje";
+  if (toDay(d) === toDay(yesterday)) return "Ontem";
+  return d.toLocaleDateString("pt-BR", {
+    day: "2-digit", month: "long", year: "numeric",
+    timeZone: "America/Sao_Paulo",
+  });
 }
 
 type SenderType = "user" | "ai" | "human";
@@ -306,7 +314,6 @@ export function ChatPanel({ phoneNumber, onUserUpdate }: ChatPanelProps) {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="border-b bg-card px-5 py-3.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Avatar */}
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 border border-primary/20 flex items-center justify-center shrink-0">
             <span className="text-xs font-bold text-primary">
               {(displayName ?? phoneNumber).slice(0, 2).toUpperCase()}

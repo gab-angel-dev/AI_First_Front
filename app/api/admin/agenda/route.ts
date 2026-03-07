@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       user_number,
       doctor_id,
       procedure: proc,
-      convenio,  // ← novo campo
+      convenio,
       start_time,
       description,
     } = body as {
@@ -101,7 +101,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    // Validação: não permite agendamento no passado
     const startDate = new Date(start_time);
     if (startDate < new Date()) {
       return NextResponse.json(
@@ -110,7 +109,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Busca dados do doutor
     const drRes = await query(
       `SELECT id, name, calendar_id, doctor_number, procedures FROM doctor_rules WHERE id = $1 AND active = true`,
       [doctor_id]
@@ -126,17 +124,14 @@ export async function POST(req: NextRequest) {
       procedures: Array<{ nome: string; duracao_minutos: number }>;
     };
 
-    // Busca duração do procedimento
     const procedureData = doctor.procedures.find((p) => p.nome === proc);
     if (!procedureData) {
       return NextResponse.json({ error: "Procedimento não encontrado para este doutor" }, { status: 404 });
     }
 
-    // Calcula end_time
     const endDate = new Date(startDate.getTime() + procedureData.duracao_minutos * 60 * 1000);
     const end_time = endDate.toISOString();
 
-    // Busca dados do paciente
     const userRes = await query(
       `SELECT complete_name, metadata FROM users WHERE phone_number = $1`,
       [user_number]
@@ -147,7 +142,6 @@ export async function POST(req: NextRequest) {
     } | undefined;
     const patientName = patient?.complete_name ?? user_number;
 
-    // Cria evento no Google Calendar
     const summary = `Consulta ${patientName}`;
     const calEvent = await adicionarEvento(
       doctor.calendar_id,
@@ -157,7 +151,6 @@ export async function POST(req: NextRequest) {
       description ?? "Agendado pelo painel admin"
     );
 
-    // Insere no BD
     const insertRes = await query(
       `INSERT INTO calendar_events
          (user_number, event_id, summary, dr_responsible, procedure, description, status, start_time, end_time)
@@ -177,13 +170,13 @@ export async function POST(req: NextRequest) {
 
     const row = insertRes.rows[0] as Record<string, unknown>;
 
-    // Notifica doutor via WhatsApp (fire and forget)
+    // Notifica doutor via WhatsApp — horário em SP
     if (doctor.doctor_number) {
-      const dataStr = startDate.toLocaleDateString("pt-BR");
-      const horaInicio = startDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-      const horaFim = endDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const spOptions = { timeZone: "America/Sao_Paulo" } as const;
+      const dataStr = startDate.toLocaleDateString("pt-BR", spOptions);
+      const horaInicio = startDate.toLocaleTimeString("pt-BR", { ...spOptions, hour: "2-digit", minute: "2-digit" });
+      const horaFim = endDate.toLocaleTimeString("pt-BR", { ...spOptions, hour: "2-digit", minute: "2-digit" });
 
-      // Prioridade: convenio enviado pelo painel → metadata do usuário → "Não informado"
       const convenioLabel = convenio
         ? convenio.charAt(0).toUpperCase() + convenio.slice(1)
         : (patient?.metadata as Record<string, unknown> | null)?.convenio_tipo as string
@@ -196,7 +189,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cria lembrete no scheduler (fire and forget)
+    // Cria lembrete no scheduler
     createSchedulerMessage(calEvent.id, user_number, start_time).catch((e) =>
       console.error("Erro ao criar lembrete:", e)
     );

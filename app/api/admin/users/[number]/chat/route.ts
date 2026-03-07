@@ -12,7 +12,8 @@ export async function GET(
     const digitsOnly = decoded.replace(/\D/g, "");
 
     const result = await query(
-      `SELECT id, session_id, sender, agent_name, message, created_at
+      `SELECT id, session_id, sender, agent_name, message,
+         TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS created_at
        FROM chat
        WHERE session_id = $1
           OR session_id = $1 || '@s.whatsapp.net'
@@ -24,13 +25,13 @@ export async function GET(
     );
 
     const rows = result.rows || [];
-    const messages: Chat[] = rows.map((r: Record<string, unknown>) => ({
+    const messages = rows.map((r: Record<string, unknown>) => ({
       id: Number(r.id),
       session_id: String(r.session_id),
       sender: r.sender as "human" | "ai" | "user",
       agent_name: r.agent_name != null ? String(r.agent_name) : null,
       message: (r.message as Chat["message"]) || {},
-      created_at: r.created_at as Date,
+      created_at: String(r.created_at), // ex: "2026-03-06T17:27:00"
     }));
 
     return NextResponse.json(messages);

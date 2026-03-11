@@ -140,7 +140,7 @@ function EventDetailModal({
       <div className="relative z-50 bg-card rounded-2xl border shadow-elevation-xl max-w-md w-full mx-4 overflow-hidden animate-scale-in">
         <ConfirmModal
           open={confirm}
-          message={`Tem certeza que deseja cancelar a consulta de ${event.patient_name} em ${start.toLocaleDateString("pt-BR")}?`}
+          message={`Tem certeza que deseja cancelar a consulta de ${event.patient_name} em ${start.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}?`}
           onConfirm={() => { setConfirm(false); onCancel(event.event_id); onClose(); }}
           onCancel={() => setConfirm(false)}
         />
@@ -180,12 +180,12 @@ function EventDetailModal({
               <InfoField
                 icon={CalendarIcon}
                 label="Data"
-                value={start.toLocaleDateString("pt-BR")}
+                value={start.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               />
               <InfoField
                 icon={Clock}
                 label="Horário"
-                value={`${start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} – ${end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+                value={`${start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })} – ${end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}`}
               />
             </div>
 

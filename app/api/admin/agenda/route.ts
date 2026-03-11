@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
          ce.description,
          ce.status,
          ce.summary,
-         ce.start_time,
-         ce.end_time,
+         TO_CHAR(ce.start_time, 'YYYY-MM-DD"T"HH24:MI:SS') AS start_time,
+         TO_CHAR(ce.end_time, 'YYYY-MM-DD"T"HH24:MI:SS') AS end_time,
          ce.created_at
        FROM calendar_events ce
        LEFT JOIN users u ON u.phone_number = ce.user_number
@@ -65,8 +65,8 @@ export async function GET(req: NextRequest) {
         description: r.description ? String(r.description) : null,
         status: String(r.status),
         summary: r.summary ? String(r.summary) : null,
-        start_time: r.start_time,
-        end_time: r.end_time,
+        start_time: String(r.start_time),
+        end_time: String(r.end_time),
         created_at: r.created_at,
       }))
     );
@@ -155,7 +155,9 @@ export async function POST(req: NextRequest) {
       `INSERT INTO calendar_events
          (user_number, event_id, summary, dr_responsible, procedure, description, status, start_time, end_time)
        VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8)
-       RETURNING id, event_id, status, start_time, end_time`,
+       RETURNING id, event_id, status,
+         TO_CHAR(start_time, 'YYYY-MM-DD"T"HH24:MI:SS') AS start_time,
+         TO_CHAR(end_time, 'YYYY-MM-DD"T"HH24:MI:SS') AS end_time`,
       [
         user_number,
         calEvent.id,
@@ -197,8 +199,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         event_id: String(row.event_id),
-        start_time: row.start_time,
-        end_time: row.end_time,
+        start_time: String(row.start_time),
+        end_time: String(row.end_time),
         status: String(row.status),
       },
       { status: 201 }

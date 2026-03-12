@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/shared/ThemeProvider";
 import {
@@ -17,24 +18,28 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  ShieldCheck,
+  LogOut,
 } from "lucide-react";
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "AI First";
 
 const menuItems = [
-  { title: "Usuários",    href: "/usuarios",   icon: Users,       group: "main" },
-  { title: "Doutores",    href: "/doutores",   icon: Stethoscope, group: "main" },
-  { title: "Agenda",      href: "/agenda",     icon: Calendar,    group: "main" },
-  { title: "Embeddings",  href: "/embeddings", icon: FileText,    group: "data" },
-  { title: "Arquivos",    href: "/arquivos",   icon: File,        group: "data" },
-  { title: "Métricas",    href: "/metricas",   icon: BarChart3,   group: "analytics" },
-  { title: "Custos",      href: "/custos",     icon: DollarSign,  group: "analytics" },
+  { title: "Usuários",    href: "/usuarios",   icon: Users,        group: "main" },
+  { title: "Doutores",    href: "/doutores",   icon: Stethoscope,  group: "main" },
+  { title: "Agenda",      href: "/agenda",     icon: Calendar,     group: "main" },
+  { title: "Embeddings",  href: "/embeddings", icon: FileText,     group: "data" },
+  { title: "Arquivos",    href: "/arquivos",   icon: File,         group: "data" },
+  { title: "Métricas",    href: "/metricas",   icon: BarChart3,    group: "analytics" },
+  { title: "Custos",      href: "/custos",     icon: DollarSign,   group: "analytics" },
+  { title: "Equipe",      href: "/equipe",     icon: ShieldCheck,  group: "config" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
   main: "Clínica",
   data: "Conteúdo",
   analytics: "Analytics",
+  config: "Configurações",
 };
 
 export function Sidebar() {
@@ -42,7 +47,6 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, toggle } = useTheme();
 
-  // Group items
   const groups = Array.from(new Set(menuItems.map((i) => i.group)));
 
   return (
@@ -75,7 +79,6 @@ export function Sidebar() {
       >
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Logo mark */}
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
               style={{
@@ -135,9 +138,7 @@ export function Sidebar() {
           return (
             <div key={group}>
               {!collapsed && (
-                <div
-                  className="px-2 mb-1.5"
-                >
+                <div className="px-2 mb-1.5">
                   <span
                     className="text-[9.5px] font-700 tracking-widest uppercase"
                     style={{ color: "hsl(var(--sidebar-text-muted))", fontWeight: 600, letterSpacing: "0.1em" }}
@@ -193,20 +194,18 @@ export function Sidebar() {
                       }}
                     >
                       <Icon
-                        className={cn("shrink-0 transition-transform duration-150", collapsed ? "h-4 w-4" : "h-4 w-4")}
+                        className="shrink-0 h-4 w-4 transition-transform duration-150"
                         strokeWidth={isActive ? 2.2 : 1.8}
                       />
                       {!collapsed && (
                         <span className="truncate text-[13px]">{item.title}</span>
                       )}
-                      {/* Active dot for collapsed */}
                       {collapsed && isActive && (
                         <span
                           className="absolute -right-px top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
                           style={{ background: "hsl(213, 70%, 62%)" }}
                         />
                       )}
-                      {/* Tooltip for collapsed */}
                       {collapsed && (
                         <span
                           className="absolute left-full ml-3 px-2.5 py-1.5 rounded-md text-xs font-medium pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap z-50"
@@ -254,6 +253,16 @@ export function Sidebar() {
             style={{ color: "hsl(var(--sidebar-text-muted))" }}
           >
             {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
+
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            aria-label="Sair"
+            title="Sair"
+            className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-white/10 shrink-0"
+            style={{ color: "hsl(var(--sidebar-text-muted))" }}
+          >
+            <LogOut className="h-3.5 w-3.5" />
           </button>
 
           {collapsed && (

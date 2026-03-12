@@ -1,0 +1,1 @@
+npx tsx scripts/create-admin.ts --email admin@gmail.com --password admin123456
